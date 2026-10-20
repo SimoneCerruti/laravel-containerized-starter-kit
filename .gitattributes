@@ -1,0 +1,18 @@
+* text=auto eol=lf
+
+*.blade.php diff=html
+*.css diff=css
+*.html diff=html
+*.md diff=markdown
+*.php diff=php
+
+/.github export-ignore
+CHANGELOG.md export-ignore
+.styleci.yml export-ignore
+
+composer.lock -diff linguist-generated
+package-lock.json -diff linguist-generated
+/public/build/** linguist-generated
+
+# The kit is installed from the dist archive (`laravel new --using`): the GitHub files are
+# copied back by the `core` module, everything else (.ai, .claude, tests, .starterkit) ships.

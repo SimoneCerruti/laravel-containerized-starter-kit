@@ -1,0 +1,1 @@
+# __KIT_APP_NAME__

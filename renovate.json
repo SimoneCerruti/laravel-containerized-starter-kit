@@ -1,0 +1,40 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "extends": [
+        "config:recommended"
+    ],
+    "timezone": "__KIT_APP_ACTUAL_TIMEZONE__",
+    "schedule": [
+        "before 6am on monday"
+    ],
+    "dependencyDashboard": true,
+    "labels": [
+        "dependencies"
+    ],
+    "composer": {
+        "enabled": true
+    },
+    "npm": {
+        "enabled": true
+    },
+    "docker": {
+        "enabled": true
+    },
+    "github-actions": {
+        "enabled": true,
+        "pinDigests": true
+    },
+    "lockFileMaintenance": {
+        "enabled": true,
+        "schedule": [
+            "before 6am on monday"
+        ]
+    },
+    "vulnerabilityAlerts": {
+        "enabled": true,
+        "labels": [
+            "dependencies",
+            "security"
+        ]
+    }
+}

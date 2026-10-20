@@ -1,0 +1,29 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "wsl.exe",
+            "args": [
+                "/usr/bin/php8.4",
+                "/home/simone/projects/laravel-containerized-starter-kit/artisan",
+                "boost:mcp"
+            ]
+        },
+        "context7": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@upstash/context7-mcp@4.0.2",
+                "--api-key",
+                "${CONTEXT7_API_KEY}"
+            ]
+        },
+        "codegraph": {
+            "type": "stdio",
+            "command": "codegraph",
+            "args": [
+                "serve",
+                "--mcp"
+            ]
+        }
+    }
+}

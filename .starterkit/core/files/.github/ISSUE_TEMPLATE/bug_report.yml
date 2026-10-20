@@ -1,0 +1,67 @@
+name: 🐞 Bug report
+description: Report incorrect behavior or a crash.
+title: "[Bug]: "
+type: Bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Fill in the fields below: they help us reproduce and diagnose the problem faster.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Description
+      description: What happens and why it is a problem.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the exact steps to reproduce the bug.
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Observe '...'
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include any error messages.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: "Excerpts from storage/logs (laravel.log, worker.log, php-fpm.log, ...). They will be formatted as code."
+      render: text
+    validations:
+      required: false
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "e.g. Production / Staging / Local — browser, version, user"
+    validations:
+      required: false
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Perceived severity
+      description: Indicative only; the final priority is set during triage.
+      options:
+        - "critical — crash or production down"
+        - "high — major feature impaired"
+        - "medium — manageable problem"
+        - "low — minor / cosmetic"
+    validations:
+      required: true

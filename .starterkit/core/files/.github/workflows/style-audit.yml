@@ -1,0 +1,49 @@
+name: Style audit (full-repo Pint)
+
+# Warn only: a scheduled full-repo Pint run that catches style drift on files untouched by recent
+# changes, kept out of the per-change `--dirty` gate to keep that loop fast.
+
+on:
+  schedule:
+    - cron: "0 7 * * 1" # weekly, Monday 07:00 UTC (offset from dependency-audit's 06:00 slot)
+  workflow_dispatch:
+
+concurrency:
+  group: style-audit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Style audit (full-repo Pint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.5"
+
+      - name: Cache Composer packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-php8.5-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php8.5-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist --no-scripts
+
+      - name: Pint (full-repo, no --dirty)
+        id: pint
+        continue-on-error: true
+        run: ./vendor/bin/pint --test
+
+      - name: Fail step summary if style drift was found
+        if: steps.pint.outcome == 'failure'
+        run: |
+          echo "### :warning: Full-repo Pint style drift found (non-blocking)" >> "$GITHUB_STEP_SUMMARY"
+          echo "pint --test: ${{ steps.pint.outcome }}" >> "$GITHUB_STEP_SUMMARY"

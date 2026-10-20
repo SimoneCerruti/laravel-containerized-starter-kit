@@ -1,0 +1,74 @@
+name: Dependency audit
+
+# Warn only: a newly disclosed advisory is a signal to triage, not a broken build.
+# Every step runs with `continue-on-error: true`, so the job never turns red on its own.
+
+on:
+  # `composer audit --locked` and `npm audit` only read the lock files: nothing else can change the result.
+  pull_request:
+    paths:
+      - "composer.json"
+      - "composer.lock"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/dependency-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "composer.json"
+      - "composer.lock"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/dependency-audit.yml"
+  schedule:
+    - cron: "0 6 * * 1" # weekly, Monday 06:00 UTC — advisories are published without any code change
+  workflow_dispatch:
+
+concurrency:
+  group: dependency-audit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: composer audit / npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: composer audit
+        # --locked reads composer.lock directly, so no `composer install` is needed beforehand.
+        id: composer_audit
+        continue-on-error: true
+        run: composer audit --locked
+
+      - name: npm audit
+        id: npm_audit
+        continue-on-error: true
+        run: npm audit
+
+      - name: Notify security-alert webhook on advisory
+        # Fallback for "warn via e-mail" when GitHub's own failed-run notification isn't enough:
+        # only fires if a repo admin has configured SECURITY_ALERT_WEBHOOK_URL; no-op otherwise.
+        # The `secrets` context isn't available in a step-level `if:`, so its presence is first
+        # resolved into `env` (which is available there) and checked through that instead.
+        env:
+          WEBHOOK_URL_SET: ${{ secrets.SECURITY_ALERT_WEBHOOK_URL != '' }}
+        if: |
+          (steps.composer_audit.outcome == 'failure' || steps.npm_audit.outcome == 'failure') &&
+          env.WEBHOOK_URL_SET == 'true'
+        run: |
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"repository\":\"${{ github.repository }}\",\"run_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"composer_audit\":\"${{ steps.composer_audit.outcome }}\",\"npm_audit\":\"${{ steps.npm_audit.outcome }}\"}" \
+            "${{ secrets.SECURITY_ALERT_WEBHOOK_URL }}"
+
+      - name: Fail step summary if an advisory was found
+        if: steps.composer_audit.outcome == 'failure' || steps.npm_audit.outcome == 'failure'
+        run: |
+          echo "### :warning: Dependency advisory found (non-blocking)" >> "$GITHUB_STEP_SUMMARY"
+          echo "composer audit: ${{ steps.composer_audit.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "npm audit: ${{ steps.npm_audit.outcome }}" >> "$GITHUB_STEP_SUMMARY"

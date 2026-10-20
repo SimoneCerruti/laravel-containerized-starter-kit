@@ -1,0 +1,134 @@
+name: Tests
+
+on:
+  pull_request:
+    # Draft PRs wait for "ready for review"; changes that cannot affect the suite never start a run.
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".handoffs/**"
+      - "LICENSE"
+      - ".ai/**"
+      - ".claude/**"
+      - ".devcontainer/**"
+      - ".mcp.json"
+      - "boost.json"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+      - ".github/workflows/container-scan.yml"
+      - ".github/workflows/dependency-audit.yml"
+      - ".github/workflows/format.yml"
+      - ".github/workflows/mutation.yml"
+      - ".github/workflows/secret-scan.yml"
+      - ".github/workflows/style-audit.yml"
+  workflow_dispatch:
+
+# No push trigger: tia-baseline.yml already runs the full suite on every push to main.
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# `gh run download` (used by Pest TIA to fetch the baseline from tia-baseline.yml) needs actions: read.
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  pest:
+    name: Pest suite
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      db:
+        image: postgres:18.6@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+        env:
+          POSTGRES_DB: __KIT_APP_SLUG___test
+          POSTGRES_USER: db_user
+          POSTGRES_PASSWORD: db_passw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -q -d __KIT_APP_SLUG___test -U db_user"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      APP_ENV: testing
+      # Pest TIA replays the tests unaffected by the PR from the graph recorded on the default branch.
+      PEST_TIA_BASELINED: 1
+      GH_TOKEN: ${{ github.token }}
+      APP_KEY: base64:2fl+Ktvkfl+Fuz4Qp/A75G2RTiWVA/ZoKZvp6fiiM10=
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: __KIT_APP_SLUG___test
+      DB_USERNAME: db_user
+      DB_PASSWORD: db_passw
+      DB_SCHEMA_NAME: public
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.5"
+          extensions: pdo_pgsql, intl, zip, exif, gd, bcmath, sockets, pcov
+          coverage: pcov
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Cache Composer packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-php8.5-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php8.5-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Install npm dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Cache Playwright browser
+        id: playwright_cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright browser
+        if: steps.playwright_cache.outputs.cache-hit != 'true'
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies only
+        # The browser binary survives via cache, but its apt-installed system libraries don't
+        # survive across the ephemeral runner, so they still need reinstalling on cache hit.
+        if: steps.playwright_cache.outputs.cache-hit == 'true'
+        run: ./node_modules/.bin/playwright install-deps chromium
+
+      - name: Build front-end assets
+        run: npm run build
+
+      - name: Run Pest suite
+        run: |
+          set +e
+          composer test:agentic
+          status=$?
+          # pest-plugin-browser never terminates the `playwright run-server` process it spawns;
+          # a lingering one holds this step's stdout pipe open until the job times out.
+          pkill -f "playwright run-server" || true
+          exit $status

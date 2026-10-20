@@ -1,0 +1,32 @@
+name: 🛠️ Task
+description: A technical task, refactor or internal work (neither a bug nor a user-facing feature).
+title: "[Task]: "
+type: Task
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What needs to be done and why.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope / checklist
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: false
+  - type: checkboxes
+    id: kind
+    attributes:
+      label: Kind of task
+      options:
+        - label: Refactor (remember to add the `refactor` label)
+        - label: Dependencies / package updates
+        - label: CI/CD
+        - label: Documentation
+    validations:
+      required: false

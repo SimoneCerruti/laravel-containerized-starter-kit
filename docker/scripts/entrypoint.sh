@@ -1,0 +1,117 @@
+#!/bin/bash
+set -e
+
+# Load runtime config so templates below see current values.
+# Laravel reads .env on its own at runtime; this is only for entrypoint/template substitution.
+if [ -f /var/www/html/.env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . /var/www/html/.env
+    set +a
+fi
+
+export APP_WORKERS_AMOUNT=${APP_WORKERS_AMOUNT:-2}
+export APP_WORKERS_MEMORY_LIMIT=${APP_WORKERS_MEMORY_LIMIT:-256M}
+export FASTCGI_HTTPS=${FASTCGI_HTTPS:-$([ "$APP_ENV" = "local" ] && echo off || echo on)}
+export PHP_MEMORY_LIMIT=${PHP_MEMORY_LIMIT:-128M}
+export PHP_MAX_EXECUTION_TIME=${PHP_MAX_EXECUTION_TIME:-30}
+export PHP_POST_MAX_SIZE=${PHP_POST_MAX_SIZE:-16M}
+export PHP_UPLOAD_MAX_FILESIZE=${PHP_UPLOAD_MAX_FILESIZE:-16M}
+export PHP_OPCACHE_PRELOAD=${PHP_OPCACHE_PRELOAD:-}
+
+# Explicit var list required: php.ini.template contains ${foo} in comments
+envsubst '${PHP_MEMORY_LIMIT} ${PHP_MAX_EXECUTION_TIME} ${PHP_POST_MAX_SIZE} ${PHP_UPLOAD_MAX_FILESIZE}' \
+    < /usr/local/etc/php/php.ini.template \
+    > /usr/local/etc/php/php.ini
+
+envsubst < /usr/local/etc/php/conf.d/opcache.ini.template \
+         > /usr/local/etc/php/conf.d/opcache.ini
+
+envsubst < /etc/supervisor/conf.d/laravel-worker.conf.template \
+         > /etc/supervisor/conf.d/laravel-worker.conf
+
+ssl_host=$(printf '%s' "${APP_URL:-http://localhost}" | sed -E 's#^[a-z]+://##; s#[:/].*##')
+SSL_DIR=/etc/nginx/ssl
+LETSENCRYPT_LIVE_DIR="/etc/letsencrypt/live/$ssl_host"
+
+# A host-managed Let's Encrypt cert wins when mounted; otherwise a self-signed one is generated
+# at every start, so the private key never lands in an image layer. Root-only permissions are
+# enough: nginx's root master process reads the key before forking the unprivileged workers.
+if [ -f "$LETSENCRYPT_LIVE_DIR/fullchain.pem" ] && [ -f "$LETSENCRYPT_LIVE_DIR/privkey.pem" ]; then
+    export SSL_CERTIFICATE="$LETSENCRYPT_LIVE_DIR/fullchain.pem"
+    export SSL_CERTIFICATE_KEY="$LETSENCRYPT_LIVE_DIR/privkey.pem"
+else
+    export SSL_CERTIFICATE="$SSL_DIR/self-signed.crt"
+    export SSL_CERTIFICATE_KEY="$SSL_DIR/self-signed.key"
+fi
+
+envsubst '${FASTCGI_HTTPS} ${SSL_CERTIFICATE} ${SSL_CERTIFICATE_KEY}' \
+    < /etc/nginx/sites-available/default.template \
+    > /etc/nginx/sites-available/default
+
+if [ "$SSL_CERTIFICATE" = "$SSL_DIR/self-signed.crt" ] && { [ ! -f "$SSL_CERTIFICATE" ] || [ ! -f "$SSL_CERTIFICATE_KEY" ]; }; then
+    mkdir -p "$SSL_DIR"
+    if printf '%s' "$ssl_host" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+        ssl_san="IP:$ssl_host,DNS:localhost,IP:127.0.0.1"
+    else
+        ssl_san="DNS:$ssl_host,DNS:localhost,IP:127.0.0.1"
+    fi
+    openssl req -x509 -nodes -days 825 -newkey rsa:2048 \
+        -keyout "$SSL_DIR/self-signed.key" -out "$SSL_DIR/self-signed.crt" \
+        -subj "/CN=$ssl_host" \
+        -addext "subjectAltName=$ssl_san"
+    chmod 600 "$SSL_DIR/self-signed.key"
+fi
+
+if [ -f /var/www/html/artisan ] && [ ! -L /var/www/html/public/storage ]; then
+    php /var/www/html/artisan storage:link || echo "[WARN] storage:link failed (non-blocking)"
+fi
+
+# Reconcile the chromium binary used by the Pest browser tests with whatever `playwright`
+# version is pinned in the bind-mounted node_modules. No-op when already up to date. Dev only
+# (devDependency, absent in production); skipped when node_modules hasn't been installed yet.
+if [ -x /var/www/html/node_modules/.bin/playwright ]; then
+    PLAYWRIGHT_BROWSERS_PATH=/var/www/.cache/ms-playwright \
+        /var/www/html/node_modules/.bin/playwright install chromium \
+        || echo "[WARN] playwright install failed (non-blocking)"
+    chown -R www-data:www-data /var/www/.cache/ms-playwright 2>/dev/null || true
+fi
+
+if [ -n "$PHP_OPCACHE_PRELOAD" ] && [ ! -f "$PHP_OPCACHE_PRELOAD" ]; then
+    echo "[WARN] $PHP_OPCACHE_PRELOAD missing - opcache preload disabled"
+fi
+
+# Keep the Claude Code CLI current on every container start (dev only). It's installed via
+# apt in the Dockerfile, so it won't self-update on its own; non-blocking so a network hiccup
+# doesn't stall boot.
+if [ "$APP_ENV" = "local" ] && command -v claude >/dev/null 2>&1; then
+    apt-get update && apt-get install --only-upgrade -y claude-code \
+        || echo "[WARN] claude-code update failed (non-blocking)"
+fi
+
+# Build the CodeGraph index on first boot only — it lives in the bind-mounted repo, so it
+# survives rebuilds and must not be re-indexed every start. Runs as www-data: the entrypoint is
+# root, and a root-owned .codegraph/ would lock out the daemon that later writes to it.
+if [ "$APP_ENV" = "local" ] && [ ! -d /var/www/html/.codegraph ] \
+    && command -v codegraph >/dev/null 2>&1; then
+    su www-data -s /bin/bash -c 'HOME=/var/www codegraph init /var/www/html' \
+        || echo "[WARN] codegraph init failed (non-blocking)"
+fi
+
+# /var/www/.claude is a named volume (dev only) so login, history and the statusline
+# survive image rebuilds. Its numeric uid can go stale if WWWUID/WWWGID change across
+# rebuilds, locking www-data out; reconcile it on every boot rather than only once.
+if [ "$APP_ENV" = "local" ]; then
+    chown -R www-data:www-data /var/www/.claude 2>/dev/null || true
+fi
+
+# @kit:startup
+
+# opcache.file_cache holds compiled bytecode PHP loads back, so it must never be
+# world-writable. Runs last, after the root-owned artisan calls above, so any entry they
+# created is handed back to www-data instead of locking the tree.
+mkdir -p /var/www/.cache/opcache
+chown -R www-data:www-data /var/www/.cache/opcache
+chmod 2770 /var/www/.cache/opcache
+
+exec "$@"

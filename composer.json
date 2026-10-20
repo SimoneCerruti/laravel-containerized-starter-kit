@@ -1,0 +1,189 @@
+{
+    "$schema": "https://getcomposer.org/schema.json",
+    "name": "simonecerruti/containerized-starter-kit",
+    "type": "project",
+    "description": "Containerized starter kit.",
+    "keywords": [
+        "laravel",
+        "framework",
+        "starter-kit",
+        "simonecerruti"
+    ],
+    "license": "MIT",
+    "require": {
+        "php": "^8.5",
+        "bepsvpt/secure-headers": "^9.1",
+        "laravel/framework": "^13.17",
+        "laravel/tinker": "^3.0",
+        "lorisleiva/laravel-actions": "^2.13",
+        "overtrue/laravel-query-logger": "^6.0",
+        "spatie/laravel-activitylog": "^5.1",
+        "spatie/laravel-data": "^4.23",
+        "staudenmeir/belongs-to-through": "^2.18",
+        "staudenmeir/eloquent-has-many-deep": "^1.22",
+        "thecodingmachine/safe": "^3.4"
+    },
+    "require-dev": {
+        "driftingly/rector-laravel": "^2.6",
+        "fakerphp/faker": "^1.23",
+        "fruitcake/laravel-debugbar": "^4.4",
+        "larastan/larastan": "^3.13",
+        "laravel/boost": "^2.2",
+        "laravel/pail": "^1.2.5",
+        "laravel/pao": "^1.0.6",
+        "laravel/pint": "^1.27",
+        "mockery/mockery": "^1.6",
+        "nunomaduro/collision": "^8.6",
+        "pestphp/pest": "^5.3",
+        "pestphp/pest-plugin-agent": "^5.0",
+        "pestphp/pest-plugin-browser": "^5.1",
+        "pestphp/pest-plugin-faker": "^5.0",
+        "pestphp/pest-plugin-laravel": "^5.0",
+        "pestphp/pest-plugin-livewire": "^5.0",
+        "pestphp/pest-plugin-mutate": "^5.0",
+        "pestphp/pest-plugin-phpstan": "^5.2",
+        "pestphp/pest-plugin-rector": "^5.0",
+        "pestphp/pest-plugin-type-coverage": "^5.0",
+        "phpstan/extension-installer": "^1.4",
+        "phpstan/phpstan-deprecation-rules": "^2.0",
+        "rector/rector": "^2.7",
+        "thecodingmachine/phpstan-safe-rule": "^1.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Database\\Factories\\": "database/factories/",
+            "Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "setup": [
+            "composer install",
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+            "@php artisan key:generate",
+            "@php artisan starter-kit:install",
+            "@php artisan migrate --force",
+            "npm install --ignore-scripts",
+            "npm run build"
+        ],
+        "dev": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php artisan dev"
+        ],
+        "test": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php -d memory_limit=-1 ./vendor/bin/pest --compact --parallel --tia"
+        ],
+        "test:agentic": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php -d memory_limit=-1 ./vendor/bin/pest --compact --parallel --tia --processes=4"
+        ],
+        "coverage": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php -d memory_limit=-1 ./vendor/bin/pest --compact --parallel --tia --coverage --min=95"
+        ],
+        "coverage:agentic": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php -d memory_limit=-1 ./vendor/bin/pest --compact --parallel --tia --processes=4 --coverage --min=95"
+        ],
+        "type-coverage": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php -d memory_limit=-1 ./vendor/bin/pest --compact --parallel --tia --type-coverage --exactly=100.0"
+        ],
+        "type-coverage:agentic": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php -d memory_limit=-1 ./vendor/bin/pest --compact --parallel --tia --processes=4 --type-coverage --exactly=100.0"
+        ],
+        "mutate": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php -d memory_limit=-1 ./vendor/bin/pest --compact --parallel --mutate --covered-only --min=99 --ignore=app/Providers/AppServiceProvider.php,app/Providers/Filament/AppPanelProvider.php"
+        ],
+        "mutate:agentic": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php -d memory_limit=-1 ./vendor/bin/pest --compact --parallel --processes=4 --mutate --covered-only --min=99 --ignore=app/Providers/AppServiceProvider.php,app/Providers/Filament/AppPanelProvider.php"
+        ],
+        "pint": [
+            "./vendor/bin/pint --parallel"
+        ],
+        "pint:agentic": [
+            "./vendor/bin/pint --dirty --parallel --format agent"
+        ],
+        "dry-pint": [
+            "./vendor/bin/pint --parallel --test"
+        ],
+        "rector": [
+            "./vendor/bin/rector",
+            "./vendor/bin/rector --config=rector-tests.php"
+        ],
+        "rector:agentic": [
+            "./vendor/bin/rector --no-progress-bar --memory-limit=-1 --output-format=json",
+            "./vendor/bin/rector --config=rector-tests.php --no-progress-bar --memory-limit=-1 --output-format=json"
+        ],
+        "dry-rector": [
+            "./vendor/bin/rector --dry-run",
+            "./vendor/bin/rector --config=rector-tests.php --dry-run"
+        ],
+        "stan": [
+            "./vendor/bin/phpstan analyze --memory-limit=-1"
+        ],
+        "stan:agentic": [
+            "./vendor/bin/phpstan analyze --memory-limit=-1 --no-progress --error-format=json"
+        ],
+        "qa": [
+            "@dry-pint",
+            "@stan",
+            "@dry-rector",
+            "@type-coverage",
+            "@coverage"
+        ],
+        "statusline": [
+            "Composer\\Config::disableProcessTimeout",
+            "npx -y ccstatusline@latest --config /var/www/html/.claude/ccstatusline/settings.json"
+        ],
+        "ai:update": [
+            "@php artisan boost:update --ansi",
+            "@php artisan ai:link-hooks --ansi"
+        ],
+        "post-autoload-dump": [
+            "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
+            "@php artisan package:discover --ansi"
+        ],
+        "post-update-cmd": [
+            "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
+            "@composer ai:update"
+        ],
+        "post-root-package-install": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+        ],
+        "post-create-project-cmd": [
+            "@php artisan key:generate --ansi",
+            "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
+            "@php artisan migrate --graceful --ansi"
+        ],
+        "pre-package-uninstall": [
+            "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
+        ]
+    },
+    "extra": {
+        "laravel": {
+            "dont-discover": []
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": true,
+            "phpstan/extension-installer": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

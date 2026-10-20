@@ -1,0 +1,45 @@
+// https://aka.ms/devcontainer.json
+{
+    "name": "__KIT_APP_NAME__",
+    "dockerComposeFile": [
+        "../docker-compose.local.yml"
+    ],
+    "service": "app",
+    "workspaceFolder": "/var/www/html",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "aaron-bond.better-comments",
+                "m1guelpf.better-pest",
+                "streetsidesoftware.code-spell-checker",
+                "streetsidesoftware.code-spell-checker-italian",
+                "mikestead.dotenv",
+                "EditorConfig.EditorConfig",
+                "eamodio.gitlens",
+                "oderwat.indent-rainbow",
+                "cjhowe7.laravel-blade",
+                "IBM.output-colorizer",
+                "christian-kohler.path-intellisense",
+                "neilbrayfield.php-docblocker",
+                "SanderRonde.phpstan-vscode",
+                "neptunedesign.vs-sequential-number",
+                "ms-vscode-remote.remote-wsl",
+                "github.vscode-github-actions",
+                "laravel.vscode-laravel",
+                "bradlc.vscode-tailwindcss",
+                "cierra.livewire-vscode",
+                "bmewburn.vscode-intelephense-client"
+            ],
+            "settings": {}
+        }
+    },
+    "remoteUser": "www-data",
+    "postCreateCommand": "chown -R www-data:www-data /var/www/html 2>/dev/null || true",
+    "mounts": [
+        // @kit:devcontainer-mounts
+        "source=claude-code-config,target=/var/www/.claude,type=volume"
+    ]
+    // "forwardPorts": [],
+    // "runServices": [],
+    // "shutdownAction": "none",
+}

@@ -1,0 +1,80 @@
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# Dependencies (rebuilt in image stages)
+/vendor
+/node_modules
+
+# Build artifacts (rebuilt by assets stage)
+/public/build
+/public/hot
+/public/storage
+
+# Env (provided at runtime)
+.env
+.env.*
+
+# Storage / runtime
+/storage/logs/*
+!/storage/logs/.gitignore
+/storage/framework/cache/data/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/framework/testing/*
+/storage/debugbar
+/storage/clockwork
+/storage/pail
+/storage/*.key
+
+# Tests / static analysis / code style
+/tests
+/phpunit.xml
+/.phpunit.cache
+/.phpunit.result.cache
+/phpstan.neon
+/pint.json
+/.phpactor.json
+/.npmrc
+
+# AI / editor / IDE configs
+/.ai
+/.claude
+/.cursor
+/.copilot
+/CLAUDE.md
+/boost.json
+/.vscode
+/.idea
+/.zed
+/.nova
+/.fleet
+/.claudeignore
+/.mcp.json
+/skills-lock.json
+
+# Local dev compose
+/docker-compose.local.yml
+
+# Starter kit installer (removed after installation)
+/.starterkit
+/starter-kit.json
+
+# Docs / misc
+/README.md
+/Homestead.json
+/Homestead.yaml
+/auth.json
+*.log
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+/.devcontainer
+/.dockerignore
+/docs
+/.editorconfig
+/.github
+/rector-tests.php
+/rector.php

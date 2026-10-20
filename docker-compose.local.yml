@@ -1,0 +1,80 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
+      target: web-local
+      args:
+        - WWWUID=${UID:-1000}
+        - WWWGID=${GID:-1000}
+    image: __KIT_VENDOR__/__KIT_APP_SLUG__
+    restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    ports:
+      - "${APP_PORT:-80}:80"
+      - "${VITE_PORT:-5173}:5173"
+    volumes:
+      - ".:/var/www/html"
+      - "~/.ssh:/var/www/.ssh"
+      - "claude_home:/var/www/.claude"
+    environment:
+      - GH_TOKEN=${GH_TOKEN:-}
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GH_TOKEN:-}
+      - CONTEXT7_API_KEY=${CONTEXT7_API_KEY:-}
+      # @kit:compose-environment
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - __KIT_APP_SLUG__
+    depends_on:
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD", "/healthcheck.sh" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: "${DB_PASSWORD}"
+      POSTGRES_DB: "${DB_DATABASE}"
+      POSTGRES_USER: "${DB_USERNAME}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+    volumes:
+      - pgsql_data:/var/lib/postgresql/data
+    ports:
+      - "${FORWARD_DB_PORT:-5432}:5432"
+    networks:
+      - __KIT_APP_SLUG__
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-q", "-d", "${DB_DATABASE}", "-U", "${DB_USERNAME}" ]
+      interval: 5s
+      retries: 12
+      timeout: 5s
+      start_period: 30s
+
+  mailpit:
+    image: "axllent/mailpit:v1.31.3"
+    restart: unless-stopped
+    ports:
+      - "${FORWARD_MAILPIT_PORT:-1025}:1025"
+      - "${FORWARD_MAILPIT_DASHBOARD_PORT:-8025}:8025"
+    networks:
+      - __KIT_APP_SLUG__
+
+  # @kit:compose-services
+
+networks:
+  __KIT_APP_SLUG__:
+    driver: bridge
+volumes:
+  pgsql_data:
+  claude_home:
+  # @kit:compose-volumes

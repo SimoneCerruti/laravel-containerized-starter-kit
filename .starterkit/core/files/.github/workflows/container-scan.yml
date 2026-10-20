@@ -1,0 +1,84 @@
+name: Container image scan
+
+# Blocking on CRITICAL findings only; HIGH/MEDIUM/LOW are reported but do not fail the check.
+# Trivy and Grype both scan the image, as neither vulnerability database is a superset of the other.
+
+on:
+  pull_request:
+    # Only PRs that can change the built image or its scan surface.
+    paths:
+      - "docker/**"
+      - "composer.lock"
+      - "package-lock.json"
+      - ".github/workflows/container-scan.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docker/**"
+      - "composer.lock"
+      - "package-lock.json"
+      - ".github/workflows/container-scan.yml"
+  schedule:
+    - cron: "0 6 * * 1" # weekly, Monday 06:00 UTC — the image can go stale with no code change
+  workflow_dispatch:
+
+concurrency:
+  group: container-scan-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Trivy + Grype (web-production image)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # Grype exports the whole image to a tar under /tmp — the stock runner disk is too tight for that.
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force
+          df -h /
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build production image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: web-production
+          tags: __KIT_APP_SLUG__:scan
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Prune Buildx builder cache
+        run: |
+          docker buildx prune --all --force
+          df -h /
+
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: __KIT_APP_SLUG__:scan
+          format: table
+          severity: CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+          # Vulnerability DB caching is on by default (actions/cache under the hood,
+          # $GITHUB_WORKSPACE/.cache/trivy) — no extra config needed.
+
+      - name: Grype scan
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: __KIT_APP_SLUG__:scan
+          severity-cutoff: critical
+          fail-build: true
+          only-fixed: true
+          cache-db: true

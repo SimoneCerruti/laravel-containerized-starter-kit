@@ -1,0 +1,32 @@
+parameters:
+    level: 6
+    paths:
+        - app
+        - config
+        - database
+        - routes
+        - tests
+    excludePaths:
+        - database/migrations/*
+        # @kit:phpstan-excludes
+    tmpDir: storage/framework/cache/phpstan
+    parallel:
+        jobSize: 20
+        maximumNumberOfProcesses: 4
+        minimumNumberOfJobsPerProcess: 2
+    universalObjectCratesClasses:
+        - Pest\Mixins\Expectation
+    checkModelProperties: true
+    checkOctaneCompatibility: true
+    checkUninitializedProperties: true
+    checkDynamicProperties: true
+    checkMissingCallableSignature: true
+    checkBenevolentUnionTypes: true
+    checkTooWideReturnTypesInProtectedAndPublicMethods: true
+    checkImplicitMixed: false
+    reportUnmatchedIgnoredErrors: true
+    reportPossiblyNonexistentGeneralArrayOffset: true
+    reportPossiblyNonexistentConstantArrayOffset: true
+    treatPhpDocTypesAsCertain: true
+    inferPrivatePropertyTypeFromConstructor: true
+    # @kit:phpstan-parameters
