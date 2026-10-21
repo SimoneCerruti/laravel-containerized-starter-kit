@@ -1,0 +1,134 @@
+# Shared Docker image workflow. It is the only place where the project image is built and pushed
+# to Docker Hub. Images are tagged with the commit SHA: that tag is what lets production reuse the
+# exact image tested in staging. Deploys use the digest, never a tag.
+
+name: _image
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: Commit the image is for
+        required: true
+        type: string
+      mode:
+        description: "build: build the image if missing (staging) | promote: reuse the staging image (production)"
+        required: true
+        type: string
+      allow_build:
+        description: "promote only: build when no staging image exists (hotfix releases)"
+        required: false
+        type: boolean
+        default: false
+      tag:
+        description: Extra tag for the image (e.g. staging, v1.6.0)
+        required: false
+        type: string
+        default: ""
+    outputs:
+      digest:
+        description: Digest of the image for the commit
+        value: ${{ jobs.image.outputs.digest }}
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    # one run per commit and never cancelled: a cancelled build would leave the commit without an image
+    concurrency:
+      group: image-${{ inputs.sha }}
+      cancel-in-progress: false
+    outputs:
+      digest: ${{ steps.tag.outputs.digest }}
+    steps:
+      # Check out the commit with full history, needed to compare a release commit with its parent
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+          fetch-depth: 0
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Docker Hub account of the client: vars.DOCKERHUB_USERNAME / vars.DOCKERHUB_NAMESPACE (usually the
+      # same) and a read-write access token. The repository must allow tag overwrites: the 'staging' tag
+      # moves at every deploy.
+      - uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Image repository
+        env:
+          NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
+        run: echo "IMAGE=docker.io/$NAMESPACE/__KIT_APP_SLUG__" >> "$GITHUB_ENV"
+
+      # Make sure $IMAGE:<sha> exists. Staging builds it; production reuses it, or reuses the parent's image
+      # for a release commit (same code, only CHANGELOG.md changes), and builds only for hotfixes
+      - name: Image for the commit
+        env:
+          SHA: ${{ inputs.sha }}
+          MODE: ${{ inputs.mode }}
+          ALLOW_BUILD: ${{ inputs.allow_build }}
+        run: |
+          if [[ -z "${IMAGE:-}" ]]; then
+            echo "::error::IMAGE is not set: set vars.DOCKERHUB_NAMESPACE"
+            exit 1
+          fi
+
+          exists() { docker manifest inspect "$1" > /dev/null 2>&1; }
+
+          # this is the only build of the project image; the layer cache lives in the same repository
+          build() {
+            docker buildx build \
+              --file docker/Dockerfile \
+              --target web-production \
+              --cache-from "type=registry,ref=$IMAGE:buildcache" \
+              --cache-to "type=registry,ref=$IMAGE:buildcache,mode=max" \
+              --tag "$IMAGE:$SHA" \
+              --push \
+              .
+          }
+
+          if exists "$IMAGE:$SHA"; then
+            echo "Reusing $IMAGE:$SHA"
+          elif [[ "$MODE" == build ]]; then
+            build
+          elif [[ "$MODE" == promote ]]; then
+            parent=$(git rev-parse "$SHA^1")
+            if [[ "$(git diff --name-only "$parent" "$SHA")" == CHANGELOG.md ]] && exists "$IMAGE:$parent"; then
+              echo "Reusing $IMAGE:$parent: the release commit changes only CHANGELOG.md"
+              docker buildx imagetools create --tag "$IMAGE:$SHA" "$IMAGE:$parent"
+            elif [[ "$ALLOW_BUILD" == true ]]; then
+              echo "Hotfix: building $IMAGE:$SHA"
+              build
+            else
+              echo "::error::No staging image for $SHA or its parent: the code must be deployed to staging before production"
+              exit 1
+            fi
+          else
+            echo "::error::invalid mode: $MODE"
+            exit 1
+          fi
+
+      # Add the extra tag. In build mode it moves (staging); in promote mode it is a version and must never change image
+      - name: Extra tag
+        id: tag
+        env:
+          SHA: ${{ inputs.sha }}
+          MODE: ${{ inputs.mode }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          digest() { docker buildx imagetools inspect "$1" --format '{{.Manifest.Digest}}'; }
+
+          image_digest=$(digest "$IMAGE:$SHA")
+          echo "digest=$image_digest" >> "$GITHUB_OUTPUT"
+          [[ -z "$TAG" ]] && exit 0
+
+          if docker manifest inspect "$IMAGE:$TAG" > /dev/null 2>&1; then
+            current=$(digest "$IMAGE:$TAG")
+            [[ "$current" == "$image_digest" ]] && exit 0
+            if [[ "$MODE" == promote ]]; then
+              echo "::error::$IMAGE:$TAG already points to a different image"
+              exit 1
+            fi
+          fi
+          docker buildx imagetools create --tag "$IMAGE:$TAG" "$IMAGE:$SHA"

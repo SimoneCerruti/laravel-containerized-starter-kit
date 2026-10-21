@@ -1,0 +1,108 @@
+# Production deploy: only released tags, reusing the image already tested in staging (hotfixes excepted).
+# The image comes from _image.yml, the deploy itself from _deploy.yml.
+
+name: Deploy production
+
+on:
+  # published by the release GitHub App (Release and Hotfix workflows)
+  release:
+    types: [published]
+  # rollback: redeploy an existing tag
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to deploy (e.g. v1.5.0)
+        required: true
+        type: string
+
+# Deploys are serialized by _deploy.yml (group deploy-production): the same group here would block it.
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      sha: ${{ steps.commit.outputs.sha }}
+      hotfix: ${{ steps.commit.outputs.hotfix }}
+    steps:
+      # Pick the tag from the Release or from the manual input, and refuse drafts, prereleases and non-vX.Y.Z tags
+      - name: Resolve tag
+        id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+          DRAFT: ${{ github.event.release.draft }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ "$EVENT" == release ]]; then
+            tag=$RELEASE_TAG
+            if [[ "$PRERELEASE" == true || "$DRAFT" == true ]]; then
+              echo "::error::$tag is a draft or prerelease: not deployable"
+              exit 1
+            fi
+          else
+            tag=$INPUT_TAG
+          fi
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$tag' is not a vX.Y.Z tag"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      # Check out production with full history and tags, needed to verify where the tag points
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: production
+          fetch-depth: 0
+
+      # Deploy only tags whose commit is on production (CONTRIBUTING §9). A commit on production but not on staging
+      # can only be a hotfix: it is the one case where production may build its own image
+      - name: Tag is on production
+        id: commit
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if ! sha=$(git rev-parse --verify --quiet "refs/tags/$TAG^{commit}"); then
+            echo "::error::tag $TAG does not exist"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$sha" origin/production; then
+            echo "::error::$TAG ($sha) is not on production: not deployable"
+            exit 1
+          fi
+          hotfix=false
+          git merge-base --is-ancestor "$sha" origin/staging || hotfix=true
+          echo "sha=$sha"       >> "$GITHUB_OUTPUT"
+          echo "hotfix=$hotfix" >> "$GITHUB_OUTPUT"
+          echo "Deploying $TAG ($sha), hotfix: $hotfix" >> "$GITHUB_STEP_SUMMARY"
+
+  # Reuse the staging image of the released code and tag it with the version; build only for hotfixes
+  image:
+    needs: checks
+    uses: ./.github/workflows/_image.yml
+    with:
+      sha: ${{ needs.checks.outputs.sha }}
+      mode: promote
+      allow_build: ${{ needs.checks.outputs.hotfix == 'true' }}
+      tag: ${{ needs.checks.outputs.tag }}
+    secrets: inherit
+
+  deploy:
+    needs: [checks, image]
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: production
+      sha: ${{ needs.checks.outputs.sha }}
+      image_ref: docker.io/${{ vars.DOCKERHUB_NAMESPACE }}/__KIT_APP_SLUG__@${{ needs.image.outputs.digest }}
+      version: ${{ needs.checks.outputs.tag }}
+      host: ${{ vars.DEPLOY_HOST }}
+      registry_user: ${{ vars.DOCKERHUB_USERNAME }}
+    # repository secrets with a suffix per environment: private free repositories have no GitHub Environments
+    secrets:
+      ssh_key: ${{ secrets.DEPLOY_SSH_KEY_PRODUCTION }}
+      known_hosts: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      dotenv: ${{ secrets.DOTENV_PRODUCTION }}
+      registry_token: ${{ secrets.DOCKERHUB_PULL_TOKEN }}

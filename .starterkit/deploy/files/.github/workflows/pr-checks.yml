@@ -1,0 +1,39 @@
+name: PR checks
+
+on:
+  pull_request:
+    branches: [staging, production]
+
+jobs:
+  target:
+    if: github.base_ref == 'production'
+    runs-on: ubuntu-latest
+    steps:
+      # Fail PRs to production that do not come from a hotfix/ branch
+      - name: Only hotfixes target production
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          [[ "$HEAD_REF" == hotfix/* ]] || { echo "::error::PRs to production must come from a hotfix/ branch"; exit 1; }
+
+  changelog:
+    # the sync PR brings into staging the version sections created on production: it is the only exception
+    if: "!(startsWith(github.head_ref, 'sync/') && github.event.pull_request.user.type == 'Bot')"
+    runs-on: ubuntu-latest
+    steps:
+      # Check out the PR with full history, needed to read CHANGELOG.md from the base commit
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Compare CHANGELOG.md with the base: only Unreleased may change, and hotfixes must add an entry
+      - name: Only the Unreleased section changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git show "$BASE_SHA:CHANGELOG.md" > "$RUNNER_TEMP/base.md"
+          flags=()
+          # a hotfix without an entry would fail its release after the merge, leaving production ahead with no tag
+          [[ "$BASE_REF" == production ]] && flags+=(--require-entry)
+          php .github/scripts/changelog.php check "$RUNNER_TEMP/base.md" CHANGELOG.md "${flags[@]}"

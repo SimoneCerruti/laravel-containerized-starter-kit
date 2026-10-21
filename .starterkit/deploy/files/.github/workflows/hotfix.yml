@@ -1,0 +1,115 @@
+name: Hotfix
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [production]
+  # rebuilds the sync PR for the latest tag (e.g. staging moved on and the PR is in conflict)
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged && startsWith(github.event.pull_request.head.ref, 'hotfix/')
+    uses: ./.github/workflows/_finalize-release.yml
+    with:
+      source_branch: production
+      bump: patch
+    secrets: inherit
+
+  sync-staging:
+    needs: release
+    if: always() && (needs.release.result == 'success' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      # Get a release GitHub App token: its pushes and PRs trigger CI, unlike GITHUB_TOKEN
+      - name: GitHub App token
+        id: app
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      # Check out production with full history and tags, needed to find the tag and merge staging
+      - uses: actions/checkout@v4
+        with:
+          ref: production
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+
+      # Set the GitHub App bot as author of the sync branch commits
+      - name: Bot git identity
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          uid=$(gh api "/users/${SLUG}[bot]" --jq .id)
+          git config user.name  "${SLUG}[bot]"
+          git config user.email "${uid}+${SLUG}[bot]@users.noreply.github.com"
+
+      # Build sync/<tag> from production; if it conflicts with staging, merge staging in with the changelog driver and push it
+      - name: Sync branch
+        id: sync
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          tag=${TAG:-$(git describe --tags --abbrev=0 --match 'v*' HEAD)}
+          branch="sync/$tag"
+          echo "tag=$tag"       >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+          git fetch origin staging
+          if git merge-base --is-ancestor origin/production origin/staging; then
+            echo "::notice::staging already contains production: nothing to sync"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git switch -C "$branch" origin/production
+          note="No conflicts with staging."
+
+          if ! git merge-tree --write-tree origin/staging HEAD > /dev/null; then
+            # the script (with shared.php, which it requires) is copied out of the working tree; attributes and config stay local to the runner
+            cp .github/scripts/changelog.php .github/scripts/shared.php "$RUNNER_TEMP/"
+            echo 'CHANGELOG.md merge=changelog' >> .git/info/attributes
+            git config merge.changelog.name   "versions from production, Unreleased from staging"
+            git config merge.changelog.driver "php $RUNNER_TEMP/changelog.php merge-driver %O %A %B"
+
+            if git merge --no-ff origin/staging -m "chore(sync): resolve $tag conflicts with staging"; then
+              note="CHANGELOG.md conflict resolved automatically: version sections from production, Unreleased from staging. Check the diff."
+            else
+              git merge --abort
+              note="⚠️ Code conflicts: resolve them by hand on this branch (\`git merge origin/staging\`), then the PR merges by itself."
+            fi
+          fi
+
+          # sync/* is a temporary bot branch: force push only matters when the PR is rebuilt
+          git push --force origin "HEAD:refs/heads/$branch"
+          {
+            echo "note<<EOF"
+            echo "$note"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # Open (or update) the sync PR to staging, set to auto-merge with a merge commit once approved and green
+      - name: PR to staging with auto-merge (merge commit)
+        if: steps.sync.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TAG: ${{ steps.sync.outputs.tag }}
+          BRANCH: ${{ steps.sync.outputs.branch }}
+          NOTE: ${{ steps.sync.outputs.note }}
+        run: |
+          title="chore(sync): bring $TAG into staging"
+          body=$(printf 'Sync after hotfix %s (CONTRIBUTING §6).\n\n%s\n\nMerges **only with a merge commit**: auto-merge is set, approving is enough.' "$TAG" "$NOTE")
+
+          if gh pr view "$BRANCH" --json state --jq .state 2>/dev/null | grep -q OPEN; then
+            gh pr comment "$BRANCH" --body "Branch rebuilt on the current staging. $NOTE"
+          else
+            gh pr create --base staging --head "$BRANCH" --title "$title" --body "$body"
+          fi
+
+          gh pr merge "$BRANCH" --auto --merge --subject "$title"

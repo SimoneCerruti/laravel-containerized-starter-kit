@@ -1,0 +1,116 @@
+name: _finalize-release
+
+on:
+  workflow_call:
+    inputs:
+      source_branch:
+        description: Branch that receives the release commit
+        required: true
+        type: string
+      ff_branches:
+        description: Space-separated branches to fast-forward to the same commit
+        required: false
+        type: string
+        default: ""
+      bump:
+        description: auto | major | minor | patch
+        required: true
+        type: string
+    outputs:
+      tag:
+        value: ${{ jobs.finalize.outputs.tag }}
+      sha:
+        value: ${{ jobs.finalize.outputs.sha }}
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      # Get a release GitHub App token: it bypasses branch protections and, unlike GITHUB_TOKEN, its pushes and releases trigger other workflows
+      - name: GitHub App token
+        id: app
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      # Check out the source branch with full history and tags, needed to compute the version and the fast-forwards
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_branch }}
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+
+      # Set the GitHub App bot as author of the release commit and tag
+      - name: Bot git identity
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          uid=$(gh api "/users/${SLUG}[bot]" --jq .id)
+          git config user.name  "${SLUG}[bot]"
+          git config user.email "${uid}+${SLUG}[bot]@users.noreply.github.com"
+
+      # Stop early if a branch to fast-forward has commits the source branch lacks
+      - name: Check fast-forward is possible
+        env:
+          FF_BRANCHES: ${{ inputs.ff_branches }}
+        run: |
+          for b in $FF_BRANCHES; do
+            if ! git merge-base --is-ancestor "origin/$b" HEAD; then
+              echo "::error::origin/$b is not an ancestor of HEAD: fast-forward impossible (sync/ PR after a hotfix still to merge?)"
+              exit 1
+            fi
+          done
+
+      # Compute the next version from the latest vX.Y.Z tag; with 'auto', infer the bump from Conventional Commits since that tag
+      - name: Compute version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          last=$(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+          git log --format='%s%n%b' "${last:+$last..}HEAD" \
+            | php .github/scripts/version.php "$last" "$BUMP" >> "$GITHUB_OUTPUT"
+
+      # Move the Unreleased entries of CHANGELOG.md into the new version section and save them as release notes
+      - name: Unreleased -> version section
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          php .github/scripts/changelog.php release "$VERSION" "$RUNNER_TEMP/notes.md"
+          git add CHANGELOG.md
+
+      # Commit the changelog as chore(release) and put an annotated tag on that commit
+      - name: Commit and tag
+        id: commit
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git commit -m "chore(release): $TAG"
+          git tag -a "$TAG" -m "$TAG"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Push source branch, fast-forwarded branches and tag together: either all update or none does
+      - name: Atomic push (source branch + fast-forwards + tag)
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          SOURCE: ${{ inputs.source_branch }}
+          FF_BRANCHES: ${{ inputs.ff_branches }}
+        run: |
+          refs=("HEAD:refs/heads/$SOURCE")
+          for b in $FF_BRANCHES; do refs+=("HEAD:refs/heads/$b"); done
+          refs+=("refs/tags/$TAG")
+          # no --force: if a branch is not a fast-forward or the tag already exists, --atomic updates nothing
+          git push --atomic origin "${refs[@]}"
+
+      # Publish the GitHub Release with the changelog notes: this starts the production deploy
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release create "$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag

@@ -48,6 +48,7 @@ The shared files contain `@kit:<name>` markers (e.g. `// @kit:user-traits`): tha
 
 - Docker environment for development and production (nginx, php-fpm, supervisor, cron) and a devcontainer.
 - GitHub workflows for tests, code style, dependency audit, secret scan and image scan, plus a weekly (non-blocking) mutation testing run. Pull requests only re-run the tests affected by their changes (Pest TIA), using a baseline graph recorded on `main` by `tia-baseline.yml`.
+- Optional `deploy` module: release flow (changelog, versioning, hotfixes), image build to Docker Hub and zero-downtime deploys to a shared VPS behind Traefik, through GitHub Actions and a single SSH gateway script on the server. The generated project documents the design, the decisions and the server and GitHub setup in `deploy/README.md`.
 - Quality tooling: Pest (arch, mutation, type coverage), PHPStan/Larastan, Rector, Pint.
 - Application base: actions, activity log, security headers, query logger, model concerns (`HasBlameable`, `LogsAllDirtyChanges`) and macros.
 

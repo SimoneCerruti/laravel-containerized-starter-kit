@@ -1,0 +1,89 @@
+# Compose file for staging and production on the shared VPS. Same file everywhere: the differences
+# live in the .env of each environment. It is validated by deploy/gateway.sh before it becomes active,
+# so only what the policy allows can be used here (see deploy/README.md).
+#
+# Variables used here come from the .env of the environment:
+#   IMAGE_REF            repo@sha256:..., written by the pipeline
+#   COMPOSE_PROJECT_NAME <app>-<env>, exported by the gateway
+#   APP_HOST             public hostname (must be in ALLOWED_HOSTS of deploy.conf)
+#   DB_DATABASE, DB_USERNAME, DB_PASSWORD
+#   optional: TRAEFIK_ENTRYPOINT, TRAEFIK_CERTRESOLVER, APP_MEMORY_LIMIT
+
+services:
+  app:
+    image: ${IMAGE_REF:?}
+    restart: unless-stopped
+    # no container_name and no ports: docker-rollout needs two containers of the service at once
+    volumes:
+      - ./.env:/var/www/html/.env:ro
+      - storage:/var/www/html/storage
+    networks:
+      - default
+      - backend
+      - proxy
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/healthcheck.sh"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    # workers stop with stopwaitsecs=660 (see laravel-worker-supervisor.conf): leave room for a running job
+    stop_grace_period: 11m
+    mem_limit: ${APP_MEMORY_LIMIT:-1g}
+    security_opt:
+      - no-new-privileges:true
+    # the image starts as root (supervisord) and drops to www-data: keep the capabilities that needs,
+    # remove the ones nothing in the container uses
+    cap_drop:
+      - MKNOD
+      - NET_RAW
+      - SETFCAP
+      - SETPCAP
+      - FSETID
+      - SYS_CHROOT
+    # list form: variables are not interpolated in the keys of a mapping, and the router name is one
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:?}.rule=Host(`${APP_HOST:?}`)
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.tls=true
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.tls.certresolver=${TRAEFIK_CERTRESOLVER:-cloudflare}
+      - traefik.http.services.${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=80
+
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:?}
+      POSTGRES_USER: ${DB_USERNAME:?}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?}
+    volumes:
+      # postgres 18 keeps its data in a versioned subdirectory of /var/lib/postgresql
+      - pgsql_data:/var/lib/postgresql
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -d $$POSTGRES_DB -U $$POSTGRES_USER"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+networks:
+  # the database is reachable only from the app of this environment and has no internet access
+  backend:
+    internal: true
+  # shared with Traefik, created by the Traefik stack
+  proxy:
+    name: traefik
+    external: true
+
+volumes:
+  storage:
+  pgsql_data:

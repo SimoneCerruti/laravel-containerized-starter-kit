@@ -1,0 +1,79 @@
+# Staging deploy: builds (or reuses) the image of the commit on the staging branch and deploys it.
+# The image comes from _image.yml, the deploy itself from _deploy.yml.
+
+name: Deploy staging
+
+on:
+  # every merged PR, including the sync PR after a hotfix
+  push:
+    branches: [staging]
+  # manual redeploy of the current staging
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  target:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.target.outputs.sha }}
+      skip: ${{ steps.target.outputs.skip }}
+    steps:
+      # Check out the pushed commit with full history, needed to compare it with its parent
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # Pick the commit to deploy. A release commit only moves the changelog and goes to production:
+      # on push it is skipped, so staging and production never update together
+      - name: Commit to deploy
+        id: target
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+        run: |
+          if [[ "$REF" != refs/heads/staging ]]; then
+            echo "::error::staging deploys run only from the staging branch"
+            exit 1
+          fi
+
+          sha=$GITHUB_SHA
+          subject=$(git log -1 --format=%s "$sha")
+          if [[ "$subject" == "chore(release): v"* && "$(git diff --name-only "$sha^1" "$sha")" == CHANGELOG.md ]]; then
+            if [[ "$EVENT" == push ]]; then
+              echo "::notice::Release commit: staging is already running this code, nothing to deploy"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            fi
+            # manual redeploy: the parent has the same code and is the commit with the staging image
+            sha=$(git rev-parse "$sha^1")
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  # Build the image for the commit (or reuse it if it already exists) and move the 'staging' tag on it
+  image:
+    needs: target
+    if: needs.target.outputs.skip != 'true'
+    uses: ./.github/workflows/_image.yml
+    with:
+      sha: ${{ needs.target.outputs.sha }}
+      mode: build
+      tag: staging
+    secrets: inherit
+
+  deploy:
+    needs: [target, image]
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: staging
+      sha: ${{ needs.target.outputs.sha }}
+      image_ref: docker.io/${{ vars.DOCKERHUB_NAMESPACE }}/__KIT_APP_SLUG__@${{ needs.image.outputs.digest }}
+      version: ${{ needs.target.outputs.sha }}
+      host: ${{ vars.DEPLOY_HOST }}
+      registry_user: ${{ vars.DOCKERHUB_USERNAME }}
+    # repository secrets with a suffix per environment: private free repositories have no GitHub Environments
+    secrets:
+      ssh_key: ${{ secrets.DEPLOY_SSH_KEY_STAGING }}
+      known_hosts: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      dotenv: ${{ secrets.DOTENV_STAGING }}
+      registry_token: ${{ secrets.DOCKERHUB_PULL_TOKEN }}

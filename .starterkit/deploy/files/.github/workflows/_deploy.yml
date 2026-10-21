@@ -1,0 +1,152 @@
+# Shared deploy workflow: talks to the server only through deploy/gateway.sh (SSH forced command).
+# Called by deploy-staging.yml and deploy-production.yml with the secrets of the right environment.
+# The steps are the gateway verbs, so every phase shows up on its own in the log.
+
+name: _deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: staging | production
+        required: true
+        type: string
+      sha:
+        description: Commit being deployed (its deploy/compose.yml is the one used)
+        required: true
+        type: string
+      image_ref:
+        description: Image to run, by digest (repo@sha256:...)
+        required: true
+        type: string
+      version:
+        description: Version shown by the app (tag or commit SHA)
+        required: true
+        type: string
+      host:
+        description: Server hostname or address
+        required: true
+        type: string
+      registry_user:
+        description: Docker Hub user of the read-only pull token
+        required: true
+        type: string
+    secrets:
+      ssh_key:
+        description: Private key bound to this app and environment in the authorized_keys of the server
+        required: true
+      known_hosts:
+        description: Host key line of the server (ssh-keyscan -t ed25519 <host>), checked at every connection
+        required: true
+      dotenv:
+        description: Content of the .env of the environment
+        required: true
+      registry_token:
+        description: Docker Hub read-only token, used by the server only while pulling
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # A deploy cancelled between migrate and rollout would leave the new schema with the old code:
+    # deploys of an environment queue up instead, and only the newest queued one is kept.
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: SSH access
+        id: ssh
+        env:
+          SSH_KEY: ${{ secrets.ssh_key }}
+          KNOWN_HOSTS: ${{ secrets.known_hosts }}
+          HOST: ${{ inputs.host }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+
+          {
+            echo "Host deploy-target"
+            echo "  HostName $HOST"
+            echo "  User deploy"
+            echo "  IdentityFile ~/.ssh/deploy_key"
+            echo "  IdentitiesOnly yes"
+            echo "  BatchMode yes"
+            echo "  StrictHostKeyChecking yes"
+            echo "  ServerAliveInterval 30"
+            echo "  ServerAliveCountMax 40"
+          } > "$HOME/.ssh/config"
+
+      # The final .env: the secret, then the values the pipeline owns (they come last, so they win)
+      - name: Build .env
+        id: dotenv
+        env:
+          DOTENV: ${{ secrets.dotenv }}
+          IMAGE_REF: ${{ inputs.image_ref }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          umask 077
+          {
+            printf '%s\n' "$DOTENV"
+            printf 'IMAGE_REF=%s\n' "$IMAGE_REF"
+            printf 'APP_VERSION=%s\n' "$VERSION"
+          } > "$RUNNER_TEMP/dotenv"
+
+          app_url=$(grep -E '^APP_URL=' "$RUNNER_TEMP/dotenv" | tail -n 1 | cut -d= -f2- | tr -d "\"'")
+          if [[ ! "$app_url" =~ ^https?://[^/]+$ ]]; then
+            echo "::error::APP_URL in the .env secret must look like https://host"
+            exit 1
+          fi
+          echo "app_url=$app_url" >> "$GITHUB_OUTPUT"
+
+      - name: Upload compose file and .env
+        run: |
+          ssh deploy-target put-compose < deploy/compose.yml
+          ssh deploy-target put-env < "$RUNNER_TEMP/dotenv"
+
+      - name: Activate
+        run: ssh deploy-target activate
+
+      # The token goes through stdin and lives on the server only for the duration of the pull
+      - name: Pull images
+        env:
+          REGISTRY_USER: ${{ inputs.registry_user }}
+          REGISTRY_TOKEN: ${{ secrets.registry_token }}
+        run: printf '%s\n%s\n' "$REGISTRY_USER" "$REGISTRY_TOKEN" | ssh deploy-target pull
+
+      - name: Start services
+        run: ssh deploy-target up-services
+
+      - name: Migrate
+        run: ssh deploy-target migrate
+
+      - name: Roll out
+        run: ssh deploy-target rollout
+
+      - name: Check the public URL
+        env:
+          APP_URL: ${{ steps.dotenv.outputs.app_url }}
+        run: |
+          for attempt in $(seq 1 30); do
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 "$APP_URL/up" || true)
+            echo "attempt $attempt: HTTP $code"
+            [[ $code == 200 ]] && exit 0
+            sleep 10
+          done
+          echo "::error::$APP_URL/up did not answer 200"
+          exit 1
+
+      - name: Remove old images
+        run: ssh deploy-target prune
+
+      - name: Status
+        if: always() && steps.ssh.outcome == 'success'
+        run: ssh deploy-target status || true
