@@ -3,11 +3,30 @@ set -e
 
 # Load runtime config so templates below see current values.
 # Laravel reads .env on its own at runtime; this is only for entrypoint/template substitution.
+# The file is parsed, never sourced: it can come from a CI secret and this script runs as root,
+# so a value like $(...) must not be executed. Only the keys the templates below use are read.
 if [ -f /var/www/html/.env ]; then
-    set -a
-    # shellcheck disable=SC1091
-    . /var/www/html/.env
-    set +a
+    double_quoted='^"(.*)"$'
+    single_quoted="^'(.*)'\$"
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        line=${line#export }
+        key=${line%%=*}
+        value=${line#*=}
+
+        [[ "$line" == *=* ]] || continue
+        [[ "$key" =~ ^(APP_ENV|APP_URL|FASTCGI_HTTPS|APP_WORKERS_[A-Z_]+|PHP_[A-Z_]+)$ ]] || continue
+
+        value=${value%"${value##*[![:space:]]}"}
+
+        if [[ "$value" =~ $double_quoted || "$value" =~ $single_quoted ]]; then
+            value=${BASH_REMATCH[1]}
+        else
+            value=${value%%[[:space:]]\#*}
+        fi
+
+        export "$key=$value"
+    done < /var/www/html/.env
 fi
 
 export APP_WORKERS_AMOUNT=${APP_WORKERS_AMOUNT:-2}
@@ -18,11 +37,21 @@ export PHP_MAX_EXECUTION_TIME=${PHP_MAX_EXECUTION_TIME:-30}
 export PHP_POST_MAX_SIZE=${PHP_POST_MAX_SIZE:-16M}
 export PHP_UPLOAD_MAX_FILESIZE=${PHP_UPLOAD_MAX_FILESIZE:-16M}
 export PHP_OPCACHE_PRELOAD=${PHP_OPCACHE_PRELOAD:-}
+export PHP_FPM_PM=${PHP_FPM_PM:-dynamic}
+export PHP_FPM_MAX_CHILDREN=${PHP_FPM_MAX_CHILDREN:-20}
+export PHP_FPM_START_SERVERS=${PHP_FPM_START_SERVERS:-4}
+export PHP_FPM_MIN_SPARE_SERVERS=${PHP_FPM_MIN_SPARE_SERVERS:-2}
+export PHP_FPM_MAX_SPARE_SERVERS=${PHP_FPM_MAX_SPARE_SERVERS:-6}
+export PHP_FPM_MAX_REQUESTS=${PHP_FPM_MAX_REQUESTS:-500}
 
 # Explicit var list required: php.ini.template contains ${foo} in comments
 envsubst '${PHP_MEMORY_LIMIT} ${PHP_MAX_EXECUTION_TIME} ${PHP_POST_MAX_SIZE} ${PHP_UPLOAD_MAX_FILESIZE}' \
     < /usr/local/etc/php/php.ini.template \
     > /usr/local/etc/php/php.ini
+
+envsubst '${PHP_FPM_PM} ${PHP_FPM_MAX_CHILDREN} ${PHP_FPM_START_SERVERS} ${PHP_FPM_MIN_SPARE_SERVERS} ${PHP_FPM_MAX_SPARE_SERVERS} ${PHP_FPM_MAX_REQUESTS}' \
+    < /usr/local/etc/php-fpm.d/www.conf.template \
+    > /usr/local/etc/php-fpm.d/www.conf
 
 envsubst < /usr/local/etc/php/conf.d/opcache.ini.template \
          > /usr/local/etc/php/conf.d/opcache.ini
@@ -64,7 +93,7 @@ if [ "$SSL_CERTIFICATE" = "$SSL_DIR/self-signed.crt" ] && { [ ! -f "$SSL_CERTIFI
 fi
 
 if [ -f /var/www/html/artisan ] && [ ! -L /var/www/html/public/storage ]; then
-    php /var/www/html/artisan storage:link || echo "[WARN] storage:link failed (non-blocking)"
+    su www-data -s /bin/bash -c 'HOME=/var/www php /var/www/html/artisan storage:link' || echo "[WARN] storage:link failed (non-blocking)"
 fi
 
 # Reconcile the chromium binary used by the Pest browser tests with whatever `playwright`
@@ -113,5 +142,12 @@ fi
 mkdir -p /var/www/.cache/opcache
 chown -R www-data:www-data /var/www/.cache/opcache
 chmod 2770 /var/www/.cache/opcache
+
+# Outside the local environment the caches (config, routes, views, events) are built at every
+# start, from the runtime .env: the container turns healthy only once they exist, and a restart
+# after a crash or a reboot repairs itself. Locally the code is bind-mounted and changes constantly.
+if [ "${APP_ENV:-production}" != "local" ]; then
+    /rebuild-caches.sh
+fi
 
 exec "$@"

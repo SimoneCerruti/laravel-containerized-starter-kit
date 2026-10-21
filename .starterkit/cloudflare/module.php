@@ -10,7 +10,7 @@ declare(strict_types=1);
 return [
     'replace' => [
         'docker/configs/nginx.conf' => [
-            "    # needed for Traefik reverse proxy\n    real_ip_header X-Forwarded-For;\n    set_real_ip_from 0.0.0.0/0;\n" => '',
+            "    # needed for Traefik reverse proxy\n    real_ip_header X-Forwarded-For;\n    set_real_ip_from 172.16.0.0/12;\n    set_real_ip_from 10.0.0.0/8;\n" => '',
         ],
     ],
     'fragments' => [

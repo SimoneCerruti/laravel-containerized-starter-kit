@@ -5,6 +5,7 @@ FROM php:8.5-fpm AS base
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    curl \
     nano \
     nginx \
     openssl \
@@ -67,7 +68,7 @@ FROM base AS web-common
 COPY ./docker/configs/nginx.conf /etc/nginx/sites-available/default.template
 
 # Setup PHP-FPM pool config
-COPY ./docker/configs/php-fpm-www.conf /usr/local/etc/php-fpm.d/www.conf
+COPY ./docker/configs/php-fpm-www.conf /usr/local/etc/php-fpm.d/www.conf.template
 
 # Setup php.ini
 COPY ./docker/configs/php.ini $PHP_INI_DIR/php.ini.template
@@ -143,8 +144,10 @@ FROM web-common AS web-production
 
 # @kit:web-production
 
-# Set permissions
-RUN chown -R www-data:www-data /var/www
+# The code stays owned by root: a compromised app (www-data) must not be able to rewrite what the
+# root entrypoint executes at the next start. www-data owns only the writable paths.
+RUN chown -R www-data:www-data storage bootstrap/cache /var/www/.cache /var/www/.npm /var/www/.config && \
+    ln -s ../storage/app/public public/storage
 
 # ========================
 # 5b. WEB LOCAL (dev)

@@ -25,6 +25,9 @@ return [
             'providers-imports' => 'use App\Providers\Filament\__KIT_PANEL_CLASS__PanelProvider;',
             'providers' => '__KIT_PANEL_CLASS__PanelProvider::class,',
         ],
+        'docker/scripts/rebuild-caches.sh' => [
+            'rebuild-caches' => 'run "Optimizing filament"       artisan filament:optimize',
+        ],
         'app/Providers/AppServiceProvider.php' => [
             'app-imports' => "use Filament\\Support\\Facades\\FilamentTimezone;\nuse Filament\\Tables\\Table;",
             'app-boot' => "FilamentTimezone::set(config()->string('app.actual_timezone'));\nTable::configureUsing(fn (Table \$table): Table => \$table->defaultDateDisplayFormat('d/m/Y')->defaultDateTimeDisplayFormat('d/m/Y H:i'));",

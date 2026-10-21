@@ -16,6 +16,10 @@
 .env
 .env.*
 
+# Cached manifests of the host (dev packages included), regenerated in the image
+/bootstrap/cache/*
+!/bootstrap/cache/.gitignore
+
 # Storage / runtime
 /storage/logs/*
 !/storage/logs/.gitignore
