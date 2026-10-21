@@ -78,6 +78,12 @@ return [
     */
     'actual_timezone' => env('ACTUAL_TIMEZONE'),
 
+    /*
+    | Release running in this environment (tag or short commit SHA), written to the .env by the
+    | deploy pipeline. Null outside deployed environments.
+    */
+    'version' => env('APP_VERSION'),
+
     // @kit:app-config
 
     /*

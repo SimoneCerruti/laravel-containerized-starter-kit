@@ -41,6 +41,10 @@ arch('control characters are escaped through the Str macro')
     ->not->toBeUsedIn('App')
     ->ignoring(EscapeControlCharactersMacro::class);
 
+arch('env() is read only by the config files')
+    ->expect('env')
+    ->not->toBeUsedIn('App');
+
 arch('app uses strict types')
     ->expect('App')
     ->toUseStrictTypes();
