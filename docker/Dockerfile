@@ -77,6 +77,7 @@ FROM base AS web-common
 
 # Nginx config
 COPY ./docker/configs/nginx.conf /etc/nginx/sites-available/default.template
+COPY ./docker/configs/nginx-real-ip.conf /etc/nginx/conf.d/real-ip.conf
 
 # Setup PHP-FPM pool config
 COPY ./docker/configs/php-fpm-www.conf /usr/local/etc/php-fpm.d/www.conf.template

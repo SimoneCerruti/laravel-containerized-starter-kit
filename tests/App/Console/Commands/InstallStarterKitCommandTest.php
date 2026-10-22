@@ -87,6 +87,7 @@ describe('with the questions', function (): void {
             ->expectsQuestion('Local port', '8080')
             ->expectsQuestion("Users' real timezone", 'Europe/Rome')
             ->expectsQuestion('GitHub repository (owner/repo, optional)', '')
+            ->expectsQuestion('Author name (optional)', '')
             ->expectsChoice('Application type', 'api', ['site_with_backoffice', 'backoffice', 'site', 'api', 'Public site + Filament back office', 'Filament back office only', 'Public site without back office', 'API only'])
             ->expectsConfirmation('Audit logins?', 'no')
             ->expectsConfirmation('Multilingual UI?', 'no')
@@ -123,6 +124,7 @@ describe('with the questions', function (): void {
             ->expectsQuestion('Local port', '8080')
             ->expectsQuestion("Users' real timezone", 'Europe/Rome')
             ->expectsQuestion('GitHub repository (owner/repo, optional)', '')
+            ->expectsQuestion('Author name (optional)', '')
             ->expectsChoice('Application type', 'api', ['site_with_backoffice', 'backoffice', 'site', 'api', 'Public site + Filament back office', 'Filament back office only', 'Public site without back office', 'API only'])
             ->expectsConfirmation('Audit logins?', 'no')
             ->expectsConfirmation('Multilingual UI?', 'no')
@@ -174,6 +176,8 @@ describe('with the questions', function (): void {
             ->expectsQuestion('Local port', '9000')
             ->expectsQuestion("Users' real timezone", 'Europe/Rome')
             ->expectsQuestion('GitHub repository (owner/repo, optional)', 'acme/full-app')
+            ->expectsQuestion('Author name (optional)', 'Jane Doe')
+            ->expectsQuestion('Author email (optional)', 'jane@acme.test')
             ->expectsChoice('Application type', 'site_with_backoffice', ['site_with_backoffice', 'backoffice', 'site', 'api', 'Public site + Filament back office', 'Filament back office only', 'Public site without back office', 'API only'])
             ->expectsQuestion('Main panel id', 'back-office')
             ->expectsConfirmation('Restrict the panel to some email domains?', 'yes')
@@ -203,6 +207,8 @@ describe('with the questions', function (): void {
         $saved = json_decode((string) file_get_contents($project.'/starter-kit.json'), true);
 
         expect($saved)->toMatchArray([
+            'author_name' => 'Jane Doe',
+            'author_email' => 'jane@acme.test',
             'panel_id' => 'back-office',
             'allowed_email_domains' => ['a.com', 'b.com'],
             'force_password_change' => true,

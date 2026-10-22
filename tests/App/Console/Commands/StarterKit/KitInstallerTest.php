@@ -185,6 +185,7 @@ PHP);
             'composer config keywords laravel',
             'composer config scripts.setup --json ["composer install","@php artisan migrate --force"]',
             'npm pkg set name=my-app private=true',
+            'npm pkg set license=UNLICENSED',
             'composer config extra.thing my-app',
             'npm pkg set scripts.x=y',
             'npm pkg set --json list=["z"]',
@@ -194,6 +195,59 @@ PHP);
             'php artisan vendor:publish --tag=one',
             'vendor/bin/pint --parallel',
         ]);
+    });
+
+    test('sets the repository links and the author when they are given', function (): void {
+        $project = createProjectFixture();
+        $commands = fakeProcessesRecordingCommands();
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api', 'gh_repository' => 'acme/my-app', 'author_name' => 'Jane Doe', 'author_email' => 'jane@acme.test']));
+
+        expect($commands->getArrayCopy())->toContain('composer config homepage https://github.com/acme/my-app')
+            ->toContain('npm pkg set homepage=https://github.com/acme/my-app repository=https://github.com/acme/my-app')
+            ->toContain('npm pkg set author=Jane Doe <jane@acme.test>')
+            ->toContain('npm pkg set license=MIT');
+
+        $composer = json_decode((string) file_get_contents($project.'/composer.json'), true);
+
+        expect($composer['support'])->toBe([
+            'issues' => 'https://github.com/acme/my-app/issues',
+            'source' => 'https://github.com/acme/my-app/tree/main',
+        ])->and($composer['authors'])->toBe([['name' => 'Jane Doe', 'email' => 'jane@acme.test']]);
+    });
+
+    test('leaves the repository links and the authors alone when they are not given', function (): void {
+        $project = createProjectFixture();
+        $commands = fakeProcessesRecordingCommands();
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api']));
+
+        expect(implode("\n", $commands->getArrayCopy()))->not->toContain('homepage')->not->toContain('authors')->not->toContain('author=');
+    });
+
+    test('writes the LICENSE of the chosen license with the year and the holder', function (): void {
+        $this->travelTo(now()->setYear(2031));
+        $project = createProjectFixture([
+            '.starterkit/core/licenses/MIT.txt' => 'MIT (c) __KIT_YEAR__ __KIT_LICENSE_HOLDER__',
+            '.starterkit/core/licenses/proprietary.txt' => 'Proprietary (c) __KIT_YEAR__ __KIT_LICENSE_HOLDER__',
+        ]);
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api', 'vendor' => 'acme']));
+
+        expect(file_get_contents($project.'/LICENSE'))->toBe('MIT (c) 2031 acme');
+
+        $other = createProjectFixture(['.starterkit/core/licenses/proprietary.txt' => 'Proprietary (c) __KIT_YEAR__ __KIT_LICENSE_HOLDER__']);
+        (new KitInstaller($other))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api', 'license' => 'proprietary', 'author_name' => 'Jane Doe']));
+
+        expect(file_get_contents($other.'/LICENSE'))->toBe('Proprietary (c) 2031 Jane Doe');
+    });
+
+    test('does not write a LICENSE when there is no text for the license', function (): void {
+        $project = createProjectFixture();
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api']));
+
+        expect($project.'/LICENSE')->not->toBeFile();
     });
 
     test('saves the answers without the secrets and removes the kit', function (): void {

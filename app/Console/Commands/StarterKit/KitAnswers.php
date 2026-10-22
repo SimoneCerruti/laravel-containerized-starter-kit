@@ -61,6 +61,8 @@ final readonly class KitAnswers {
         public bool $cloudflare = false,
         public bool $backup_google_drive = false,
         public bool $setup_guide = false,
+        public string $author_name = '',
+        public string $author_email = '',
     ) {
         $this->assertOneOf('app_type', $this->app_type, self::APP_TYPES);
         $this->assertOneOf('permissions', $this->permissions, self::PERMISSIONS);
@@ -163,6 +165,8 @@ final readonly class KitAnswers {
             'KIT_APP_PORT' => (string) $this->port,
             'KIT_APP_ACTUAL_TIMEZONE' => $this->timezone,
             'KIT_GH_REPOSITORY' => $this->gh_repository,
+            'KIT_YEAR' => (string) now()->year,
+            'KIT_LICENSE_HOLDER' => $this->author_name !== '' ? $this->author_name : $this->vendor,
             'KIT_GH_TOKEN' => $this->gh_token,
             'KIT_CONTEXT7_API_KEY' => $this->context7_key,
             'KIT_PANEL_ID' => $this->panel_id,

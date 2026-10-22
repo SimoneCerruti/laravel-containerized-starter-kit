@@ -103,6 +103,8 @@ final class KitInstaller {
             }
         }
 
+        $this->writeLicenseFile($replacer, $answers);
+
         if ($answers->setup_guide) {
             $this->writeSetupGuide($active, $answers, $replacer);
         }
@@ -275,6 +277,33 @@ final class KitInstaller {
         $this->run(['composer', 'config', 'keywords', 'laravel']);
         $this->run(['composer', 'config', 'scripts.setup', '--json', json_encode($this->setupScriptWithoutKit(), JSON_THROW_ON_ERROR)]);
         $this->run(['npm', 'pkg', 'set', "name={$answers->app_slug}", 'private=true']);
+        $this->run(['npm', 'pkg', 'set', 'license='.($answers->license === 'proprietary' ? 'UNLICENSED' : $answers->license)]);
+
+        if ($answers->gh_repository !== '') {
+            $url = "https://github.com/{$answers->gh_repository}";
+
+            $this->run(['composer', 'config', 'homepage', $url]);
+            $this->mergeJsonEntries('composer.json', ['support' => ['issues' => "{$url}/issues", 'source' => "{$url}/tree/main"]]);
+            $this->run(['npm', 'pkg', 'set', "homepage={$url}", "repository={$url}"]);
+        }
+
+        if ($answers->author_name !== '') {
+            $author = array_filter(['name' => $answers->author_name, 'email' => $answers->author_email]);
+
+            $this->mergeJsonEntries('composer.json', ['authors' => [$author]]);
+            $this->run(['npm', 'pkg', 'set', 'author='.$answers->author_name.($answers->author_email === '' ? '' : " <{$answers->author_email}>")]);
+        }
+    }
+
+    /**
+     * Writes `LICENSE` from the text of the chosen license, kept in `.starterkit/core/licenses`.
+     */
+    private function writeLicenseFile(PlaceholderReplacer $replacer, KitAnswers $answers): void {
+        $source = $this->modulePath('core').'/licenses/'.$answers->license.'.txt';
+
+        if (is_file($source)) {
+            file_put_contents($this->base_path.'/LICENSE', $replacer->replace(file_get_contents($source)));
+        }
     }
 
     /**

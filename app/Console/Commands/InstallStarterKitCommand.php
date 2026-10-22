@@ -95,6 +95,8 @@ final class InstallStarterKitCommand extends Command {
             'port' => (int) text('Local port', default: '8080', required: true, validate: fn (string $value): ?string => ctype_digit($value) ? null : 'The port must be a number.'),
             'timezone' => text("Users' real timezone", default: 'Europe/Rome', required: true),
             'gh_repository' => text('GitHub repository (owner/repo, optional)'),
+            'author_name' => $author_name = text('Author name (optional)'),
+            'author_email' => $author_name === '' ? '' : text('Author email (optional)'),
             'app_type' => select('Application type', [
                 'site_with_backoffice' => 'Public site + Filament back office',
                 'backoffice' => 'Filament back office only',
