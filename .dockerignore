@@ -27,7 +27,6 @@
 /storage/framework/sessions/*
 /storage/framework/views/*
 /storage/framework/testing/*
-/storage/debugbar
 /storage/clockwork
 /storage/pail
 /storage/*.key
