@@ -6,6 +6,14 @@ set -e
 # The file is parsed, never sourced: it can come from a CI secret and this script runs as root,
 # so a value like $(...) must not be executed. Only the keys the templates below use are read.
 if [ -f /var/www/html/.env ]; then
+    allowed_keys=(
+        'APP_ENV'
+        'APP_URL'
+        'FASTCGI_HTTPS'
+        'APP_WORKERS_[A-Z_]+'
+        'PHP_[A-Z_]+'
+        # @kit:env-allowlist
+    )
     double_quoted='^"(.*)"$'
     single_quoted="^'(.*)'\$"
 
@@ -15,7 +23,17 @@ if [ -f /var/www/html/.env ]; then
         value=${line#*=}
 
         [[ "$line" == *=* ]] || continue
-        [[ "$key" =~ ^(APP_ENV|APP_URL|FASTCGI_HTTPS|APP_WORKERS_[A-Z_]+|PHP_[A-Z_]+)$ ]] || continue
+
+        is_allowed=false
+
+        for allowed_key in "${allowed_keys[@]}"; do
+            if [[ "$key" =~ ^${allowed_key}$ ]]; then
+                is_allowed=true
+                break
+            fi
+        done
+
+        [ "$is_allowed" = true ] || continue
 
         value=${value%"${value##*[![:space:]]}"}
 
@@ -118,6 +136,7 @@ if [ "$APP_ENV" = "local" ] && command -v claude >/dev/null 2>&1; then
         || echo "[WARN] claude-code update failed (non-blocking)"
 fi
 
+# @kit:begin codegraph
 # Build the CodeGraph index on first boot only — it lives in the bind-mounted repo, so it
 # survives rebuilds and must not be re-indexed every start. Runs as www-data: the entrypoint is
 # root, and a root-owned .codegraph/ would lock out the daemon that later writes to it.
@@ -127,6 +146,7 @@ if [ "$APP_ENV" = "local" ] && [ ! -d /var/www/html/.codegraph ] \
         || echo "[WARN] codegraph init failed (non-blocking)"
 fi
 
+# @kit:end codegraph
 # /var/www/.claude is a named volume (dev only) so login, history and the statusline
 # survive image rebuilds. Its numeric uid can go stale if WWWUID/WWWGID change across
 # rebuilds, locking www-data out; reconcile it on every boot rather than only once.

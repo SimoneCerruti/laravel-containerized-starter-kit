@@ -29,11 +29,7 @@ if [ "${NIGHTWATCH_ENABLED:-true}" = "false" ]; then
     rm -f /etc/supervisor/conf.d/nightwatch-agent.conf
 fi
 SH,
-        ],
-    ],
-    'replace' => [
-        'docker/scripts/entrypoint.sh' => [
-            '|PHP_[A-Z_]+)$ ]]' => '|PHP_[A-Z_]+|NIGHTWATCH_ENABLED)$ ]]',
+            'env-allowlist' => "'NIGHTWATCH_ENABLED'",
         ],
     ],
 ];

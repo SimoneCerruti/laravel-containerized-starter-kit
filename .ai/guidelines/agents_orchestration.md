@@ -18,6 +18,7 @@ Set of rules, best practice and guidelines an AI agent must follow when working 
 - An approved plan states the file paths, conventions, helper names, and test seams resolved during planning. Read them from there, do not re-explore or re-verify.
 - To get packages documentation, consult `context7 mcp`.
 - This project has domain-specific skills available in **/skills/**. You MUST activate the relevant skill whenever you work in that domain.
+<!-- @kit:begin codegraph -->
 - Reach for CodeGraph BEFORE grep/find or reading files when you need to understand or locate code
   — this repo is indexed by it (a `.codegraph/` directory exists at the repo root):
   - **MCP tool** (when available): `codegraph_explore` answers most code questions in one call — the
@@ -26,6 +27,7 @@ Set of rules, best practice and guidelines an AI agent must follow when working 
     source. If it's listed but deferred, load it by name via tool search.
   - **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same
     output.
+<!-- @kit:end codegraph -->
 
 ## Delegating to subagents
 

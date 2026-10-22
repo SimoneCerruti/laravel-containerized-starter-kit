@@ -25,7 +25,7 @@ final readonly class ModuleManifest {
      * @param  list<string>  $artisan  shell commands run after the packages are installed
      * @param  list<string>  $remove_files  removed when the module is not selected
      * @param  list<string>  $remove_packages  removed when the module is not selected
-     * @param  array<string, array<string, string>>  $replace_when_disabled  file => search => replacement, applied when the module is not selected
+     * @param  array<string, array<string, list<string>|null>>  $json_when_disabled  JSON file => dotted path => values to drop from the array there (`null` drops the key), applied when the module is not selected
      * @param  array<string, mixed>  $composer_config  `composer config` keys, arrays are passed as JSON
      * @param  array<string, mixed>  $npm_config  `npm pkg set` keys, arrays are passed as JSON
      */
@@ -40,7 +40,7 @@ final readonly class ModuleManifest {
         public array $artisan = [],
         public array $remove_files = [],
         public array $remove_packages = [],
-        public array $replace_when_disabled = [],
+        public array $json_when_disabled = [],
         public array $composer_config = [],
         public array $npm_config = [],
     ) {}
@@ -78,7 +78,7 @@ final readonly class ModuleManifest {
             artisan: self::stringList($definition['artisan'] ?? []),
             remove_files: self::stringList(self::path($definition, 'when_disabled', 'remove_files')),
             remove_packages: self::stringList(self::path($definition, 'when_disabled', 'remove_packages')),
-            replace_when_disabled: self::nestedStringMap(self::path($definition, 'when_disabled', 'replace')),
+            json_when_disabled: self::jsonEntries(self::path($definition, 'when_disabled', 'json')),
             composer_config: (array) self::path($definition, 'json', 'composer'),
             npm_config: (array) self::path($definition, 'json', 'npm'),
         );
@@ -165,6 +165,17 @@ final readonly class ModuleManifest {
      */
     private static function nestedStringMap(mixed $value): array {
         return collect((array) $value)->map(fn (mixed $item): array => self::stringMap($item))->all();
+    }
+
+    /**
+     * @return array<string, array<string, list<string>|null>>
+     */
+    private static function jsonEntries(mixed $value): array {
+        return collect((array) $value)
+            ->map(fn (mixed $entries): array => collect((array) $entries)
+                ->map(fn (mixed $values): ?array => $values === null ? null : self::stringList($values))
+                ->all())
+            ->all();
     }
 
     /**

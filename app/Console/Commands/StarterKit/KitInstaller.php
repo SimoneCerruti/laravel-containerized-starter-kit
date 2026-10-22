@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands\StarterKit;
 
 use Closure;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
 use Symfony\Component\Finder\Finder;
@@ -79,6 +80,7 @@ final class KitInstaller {
         }
 
         $this->removeDisabledModules($active);
+        $this->removeInactiveRegions($active);
         $unresolved = $this->replacePlaceholdersInProject($replacer);
         $this->stripMarkers();
         $this->writeEnvFiles($manifests, $replacer);
@@ -198,10 +200,8 @@ final class KitInstaller {
                 $this->deletePath($this->base_path.'/'.$path);
             }
 
-            foreach ($manifest->replace_when_disabled as $file => $replacements) {
-                if (is_file($this->base_path.'/'.$file)) {
-                    $this->updateFile($file, fn (string $contents): string => strtr($contents, $replacements));
-                }
+            foreach ($manifest->json_when_disabled as $file => $entries) {
+                $this->forgetJsonEntries($file, $entries);
             }
 
             $composer = $this->readJson('composer.json');
@@ -214,6 +214,42 @@ final class KitInstaller {
                 }
             }
         }
+    }
+
+    /**
+     * @param  list<string>  $active
+     */
+    private function removeInactiveRegions(array $active): void {
+        $patcher = new MarkerPatcher;
+
+        foreach ($this->scannableFiles() as $path) {
+            $contents = (string) file_get_contents($path);
+
+            if (str_contains($contents, '@kit:begin')) {
+                file_put_contents($path, $patcher->removeInactiveRegions($contents, $active));
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, list<string>|null>  $entries  dotted path => values to drop from the array there, `null` drops the key
+     */
+    private function forgetJsonEntries(string $file, array $entries): void {
+        if (! is_file($this->base_path.'/'.$file)) {
+            return;
+        }
+
+        $data = $this->readJson($file);
+
+        foreach ($entries as $path => $values) {
+            if ($values === null) {
+                Arr::forget($data, $path);
+            } elseif (Arr::has($data, $path)) {
+                Arr::set($data, $path, array_values(array_filter((array) Arr::get($data, $path), fn (mixed $item): bool => ! \in_array($item, $values, true))));
+            }
+        }
+
+        file_put_contents($this->base_path.'/'.$file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n");
     }
 
     /**

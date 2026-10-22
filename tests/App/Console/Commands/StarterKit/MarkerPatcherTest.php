@@ -57,3 +57,28 @@ describe('stripMarkers', function (): void {
         expect((new MarkerPatcher)->stripMarkers($contents))->toBe("a\nb\nc");
     });
 });
+
+describe('removeInactiveRegions', function (): void {
+    test('drops the regions of the modules that are not active, markers included', function (): void {
+        $contents = "a\n# @kit:begin codegraph\nb\n# @kit:end codegraph\nc";
+
+        expect((new MarkerPatcher)->removeInactiveRegions($contents, ['core']))->toBe("a\nc");
+    });
+
+    test('leaves the regions of the active modules untouched', function (): void {
+        $contents = "a\n# @kit:begin codegraph\nb\n# @kit:end codegraph\nc";
+
+        expect((new MarkerPatcher)->removeInactiveRegions($contents, ['codegraph']))->toBe($contents);
+    });
+
+    test('drops a negated region when the module is active', function (): void {
+        $contents = "a\n# @kit:begin !cloudflare\nb\n# @kit:end !cloudflare\nc";
+
+        expect((new MarkerPatcher)->removeInactiveRegions($contents, ['cloudflare']))->toBe("a\nc")
+            ->and((new MarkerPatcher)->removeInactiveRegions($contents, []))->toBe($contents);
+    });
+
+    test('fails when a dropped region is never closed', function (): void {
+        (new MarkerPatcher)->removeInactiveRegions("# @kit:begin codegraph\nb", []);
+    })->throws(RuntimeException::class, 'Region [@kit:begin codegraph] is never closed.');
+});

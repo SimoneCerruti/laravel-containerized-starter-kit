@@ -5,14 +5,10 @@ declare(strict_types=1);
 /*
  * Cloudflare real client IPs: nginx reads CF-Connecting-IP from Cloudflare ranges refreshed
  * at container start and weekly; Laravel trusts the proxy chain.
- * `replace` entries swap the permissive Traefik-oriented defaults in the base files.
+ * The permissive Traefik-oriented defaults in `nginx.conf` sit in a `!cloudflare` region of the base file,
+ * dropped when this module is selected.
  */
 return [
-    'replace' => [
-        'docker/configs/nginx.conf' => [
-            "    # needed for Traefik reverse proxy\n    real_ip_header X-Forwarded-For;\n    set_real_ip_from 172.16.0.0/12;\n    set_real_ip_from 10.0.0.0/8;\n" => '',
-        ],
-    ],
     'fragments' => [
         'docker/Dockerfile' => [
             'web-production' => <<<'DOCKER'

@@ -122,14 +122,44 @@ PHP);
             ->and(implode("\n", $commands->getArrayCopy()))->not->toContain('not/installed');
     });
 
-    test('takes the text of a module that is not selected out of the shared files', function (): void {
-        $project = createProjectFixture(['.mcp.json' => "{\"a\": 1,\n\"extra\": 2}"]);
+    test('takes the JSON entries of a module that is not selected out of the shared files', function (): void {
+        $project = createProjectFixture(['.mcp.json' => '{"servers": {"a": 1, "extra": 2}, "allow": ["x", "extra__*"]}']);
         fakeProcessesRecordingCommands();
-        writeModuleManifest($project, 'extra', "['when_disabled' => ['replace' => ['.mcp.json' => [\",\\n\\\"extra\\\": 2\" => ''], 'missing.txt' => ['x' => 'y']]]]");
+        writeModuleManifest($project, 'extra', "['when_disabled' => ['json' => ['.mcp.json' => ['servers.extra' => null, 'allow' => ['extra__*'], 'missing.path' => null], 'missing.json' => ['a' => null]]]]");
 
         (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api']));
 
-        expect(file_get_contents($project.'/.mcp.json'))->toBe('{"a": 1}');
+        expect(json_decode(file_get_contents($project.'/.mcp.json'), true))->toBe(['servers' => ['a' => 1], 'allow' => ['x']]);
+    });
+
+    test('keeps the JSON entries of the modules that are selected', function (): void {
+        $project = createProjectFixture(['.mcp.json' => '{"servers": {"extra": 2}}']);
+        writeModuleManifest($project, 'extra', "['when_disabled' => ['json' => ['.mcp.json' => ['servers.extra' => null]]]]");
+        $answers = KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api', 'modules' => ['extra']]);
+
+        (new KitInstaller($project))->install($answers);
+
+        expect(json_decode(file_get_contents($project.'/.mcp.json'), true))->toBe(['servers' => ['extra' => 2]]);
+    });
+
+    test('drops the regions of the modules that are not selected and the markers of the others', function (): void {
+        $project = createProjectFixture(['docker/Dockerfile' => "A\n# @kit:begin extra\nB\n# @kit:end extra\n# @kit:begin !extra\nC\n# @kit:end !extra\nD\n"]);
+        fakeProcessesRecordingCommands();
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api']));
+
+        expect(file_get_contents($project.'/docker/Dockerfile'))->toBe("A\nC\nD\n");
+    });
+
+    test('keeps the regions of the modules that are selected', function (): void {
+        $project = createProjectFixture(['docker/Dockerfile' => "A\n# @kit:begin extra\nB\n# @kit:end extra\n# @kit:begin !extra\nC\n# @kit:end !extra\nD\n"]);
+        fakeProcessesRecordingCommands();
+        writeModuleManifest($project, 'extra', '[]');
+        $answers = KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api', 'modules' => ['extra']]);
+
+        (new KitInstaller($project))->install($answers);
+
+        expect(file_get_contents($project.'/docker/Dockerfile'))->toBe("A\nB\nD\n");
     });
 
     test('keeps the files of the modules that are selected', function (): void {

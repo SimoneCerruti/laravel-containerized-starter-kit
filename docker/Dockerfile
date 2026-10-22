@@ -223,12 +223,14 @@ RUN npx --yes playwright@1.64.0 install-deps chromium && \
 RUN rm -f /usr/bin/sg && \
     npm install -g @ast-grep/cli@0.45.3 && npm cache clean --force
 
+# @kit:begin codegraph
 # CodeGraph (local code-intelligence graph + MCP server for the agents). The npm package ships
 # the native binary as an optionalDependency, so the build needs no runtime download. Telemetry
 # defaults to ON upstream and the home dir isn't a persisted volume, so it's disabled via env.
 ENV CODEGRAPH_TELEMETRY=0
 RUN npm install -g @colbymchenry/codegraph@1.6.0 && npm cache clean --force
 
+# @kit:end codegraph
 # Reap orphaned `playwright run-server` processes left by Pest browser tests (dev only —
 # pest-plugin-browser never terminates the process it spawns; see
 # docker/scripts/reap-playwright-orphans.sh).

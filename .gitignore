@@ -31,7 +31,9 @@ Thumbs.db
 /.claude/ccstatusline/
 # Symlink to .ai/hooks, created by `composer ai:update` (a dist archive would not keep it).
 /.claude/hooks
+# @kit:begin codegraph
 /.codegraph
+# @kit:end codegraph
 docs/plans/**
 /.claude/settings.local.json
 CLAUDE.local.md
