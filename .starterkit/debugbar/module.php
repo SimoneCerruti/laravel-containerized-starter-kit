@@ -3,21 +3,12 @@
 declare(strict_types=1);
 
 /*
- * Laravel Debugbar, a dev-only package (`require-dev`, never in the production image). The base
- * project ships with it; when it is not selected `when_disabled` takes it out with its storage folder.
+ * Laravel Debugbar, a dev-only package (`require-dev`, never in the production image). It is not part
+ * of the base project: it is installed only when selected. Its storage folder is already ignored by
+ * `.gitignore` and `.dockerignore`.
  */
 return [
-    'when_disabled' => [
-        'replace' => [
-            '.gitignore' => [
-                "/storage/debugbar\n" => '',
-            ],
-            '.dockerignore' => [
-                "/storage/debugbar\n" => '',
-            ],
-        ],
-        'remove_packages' => [
-            'fruitcake/laravel-debugbar',
-        ],
+    'require-dev' => [
+        'fruitcake/laravel-debugbar' => '^4.4',
     ],
 ];
