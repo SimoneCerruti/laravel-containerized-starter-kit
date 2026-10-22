@@ -47,6 +47,8 @@ if [ -f /var/www/html/.env ]; then
     done < /var/www/html/.env
 fi
 
+# @kit:env-defaults
+export REAL_IP_HEADER=${REAL_IP_HEADER:-X-Forwarded-For}
 export APP_WORKERS_AMOUNT=${APP_WORKERS_AMOUNT:-2}
 export APP_WORKERS_MEMORY_LIMIT=${APP_WORKERS_MEMORY_LIMIT:-256M}
 export FASTCGI_HTTPS=${FASTCGI_HTTPS:-$([ "$APP_ENV" = "local" ] && echo off || echo on)}
@@ -92,7 +94,7 @@ else
     export SSL_CERTIFICATE_KEY="$SSL_DIR/self-signed.key"
 fi
 
-envsubst '${FASTCGI_HTTPS} ${SSL_CERTIFICATE} ${SSL_CERTIFICATE_KEY}' \
+envsubst '${FASTCGI_HTTPS} ${SSL_CERTIFICATE} ${SSL_CERTIFICATE_KEY} ${REAL_IP_HEADER}' \
     < /etc/nginx/sites-available/default.template \
     > /etc/nginx/sites-available/default
 
@@ -136,17 +138,6 @@ if [ "$APP_ENV" = "local" ] && command -v claude >/dev/null 2>&1; then
         || echo "[WARN] claude-code update failed (non-blocking)"
 fi
 
-# @kit:begin codegraph
-# Build the CodeGraph index on first boot only — it lives in the bind-mounted repo, so it
-# survives rebuilds and must not be re-indexed every start. Runs as www-data: the entrypoint is
-# root, and a root-owned .codegraph/ would lock out the daemon that later writes to it.
-if [ "$APP_ENV" = "local" ] && [ ! -d /var/www/html/.codegraph ] \
-    && command -v codegraph >/dev/null 2>&1; then
-    su www-data -s /bin/bash -c 'HOME=/var/www codegraph init /var/www/html' \
-        || echo "[WARN] codegraph init failed (non-blocking)"
-fi
-
-# @kit:end codegraph
 # /var/www/.claude is a named volume (dev only) so login, history and the statusline
 # survive image rebuilds. Its numeric uid can go stale if WWWUID/WWWGID change across
 # rebuilds, locking www-data out; reconcile it on every boot rather than only once.

@@ -5,8 +5,7 @@ declare(strict_types=1);
 /*
  * Cloudflare real client IPs: nginx reads CF-Connecting-IP from Cloudflare ranges refreshed
  * at container start and weekly; Laravel trusts the proxy chain.
- * The permissive Traefik-oriented defaults in `nginx.conf` sit in a `!cloudflare` region of the base file,
- * dropped when this module is selected.
+ * `REAL_IP_HEADER` (X-Forwarded-For by default, for Traefik) is switched to CF-Connecting-IP.
  */
 return [
     'fragments' => [
@@ -21,6 +20,7 @@ RUN chmod +x /usr/local/bin/cloudflare-ips.sh && \
 DOCKER,
         ],
         'docker/scripts/entrypoint.sh' => [
+            'env-defaults' => 'export REAL_IP_HEADER=CF-Connecting-IP',
             'startup' => <<<'SH'
 # Refresh Cloudflare IP ranges (best effort)
 /usr/local/bin/cloudflare-ips.sh || echo "[WARN] Could not refresh Cloudflare IPs at startup"

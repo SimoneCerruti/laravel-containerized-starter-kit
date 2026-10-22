@@ -143,17 +143,12 @@
             "Composer\\Config::disableProcessTimeout",
             "npx -y ccstatusline@latest --config /var/www/html/.claude/ccstatusline/settings.json"
         ],
-        "ai:update": [
-            "@php artisan boost:update --ansi",
-            "@php artisan ai:link-hooks --ansi"
-        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"
         ],
         "post-update-cmd": [
-            "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
-            "@composer ai:update"
+            "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
         ],
         "post-root-package-install": [
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""

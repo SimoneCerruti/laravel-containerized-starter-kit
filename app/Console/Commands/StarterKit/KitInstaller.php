@@ -80,7 +80,6 @@ final class KitInstaller {
         }
 
         $this->removeDisabledModules($active);
-        $this->removeInactiveRegions($active);
         $unresolved = $this->replacePlaceholdersInProject($replacer);
         $this->stripMarkers();
         $this->writeEnvFiles($manifests, $replacer);
@@ -200,10 +199,6 @@ final class KitInstaller {
                 $this->deletePath($this->base_path.'/'.$path);
             }
 
-            foreach ($manifest->json_when_disabled as $file => $entries) {
-                $this->forgetJsonEntries($file, $entries);
-            }
-
             $composer = $this->readJson('composer.json');
 
             foreach (['require' => [], 'require-dev' => ['--dev']] as $section => $flags) {
@@ -214,42 +209,6 @@ final class KitInstaller {
                 }
             }
         }
-    }
-
-    /**
-     * @param  list<string>  $active
-     */
-    private function removeInactiveRegions(array $active): void {
-        $patcher = new MarkerPatcher;
-
-        foreach ($this->scannableFiles() as $path) {
-            $contents = (string) file_get_contents($path);
-
-            if (str_contains($contents, '@kit:begin')) {
-                file_put_contents($path, $patcher->removeInactiveRegions($contents, $active));
-            }
-        }
-    }
-
-    /**
-     * @param  array<string, list<string>|null>  $entries  dotted path => values to drop from the array there, `null` drops the key
-     */
-    private function forgetJsonEntries(string $file, array $entries): void {
-        if (! is_file($this->base_path.'/'.$file)) {
-            return;
-        }
-
-        $data = $this->readJson($file);
-
-        foreach ($entries as $path => $values) {
-            if ($values === null) {
-                Arr::forget($data, $path);
-            } elseif (Arr::has($data, $path)) {
-                Arr::set($data, $path, array_values(array_filter((array) Arr::get($data, $path), fn (mixed $item): bool => ! \in_array($item, $values, true))));
-            }
-        }
-
-        file_put_contents($this->base_path.'/'.$file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n");
     }
 
     /**
@@ -341,11 +300,34 @@ final class KitInstaller {
                 : ['composer', 'config', $key, $replacer->replace((string) $value)]);
         }
 
+        foreach ($manifest->json_files as $file => $entries) {
+            $this->mergeJsonEntries($file, $entries);
+        }
+
         foreach ($manifest->npm_config as $key => $value) {
             $this->run(\is_array($value)
                 ? ['npm', 'pkg', 'set', '--json', "{$key}=".json_encode($value, JSON_THROW_ON_ERROR)]
                 : ['npm', 'pkg', 'set', "{$key}=".$replacer->replace((string) $value)]);
         }
+    }
+
+    /**
+     * A list is merged into the list already at the dotted path, anything else is set there.
+     *
+     * @param  array<string, mixed>  $entries  dotted path => value
+     */
+    private function mergeJsonEntries(string $file, array $entries): void {
+        $data = $this->readJson($file);
+
+        foreach ($entries as $path => $value) {
+            $existing = Arr::get($data, $path);
+
+            Arr::set($data, $path, \is_array($existing) && array_is_list($existing) && \is_array($value) && array_is_list($value)
+                ? array_values(array_unique([...$existing, ...$value], SORT_REGULAR))
+                : $value);
+        }
+
+        $this->writeJson($file, $data);
     }
 
     /**
@@ -429,7 +411,14 @@ final class KitInstaller {
         $existing = array_map(strval(...), (array) ($composer['scripts'][$event] ?? []));
         $composer['scripts'][$event] = array_values(array_unique([...$existing, ...$commands]));
 
-        file_put_contents($this->base_path.'/composer.json', json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n");
+        $this->writeJson('composer.json', $composer);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function writeJson(string $relative_path, array $data): void {
+        file_put_contents($this->base_path.'/'.$relative_path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n");
     }
 
     /**

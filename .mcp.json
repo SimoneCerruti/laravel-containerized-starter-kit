@@ -15,14 +15,6 @@
                 "--api-key",
                 "${CONTEXT7_API_KEY}"
             ]
-        },
-        "codegraph": {
-            "type": "stdio",
-            "command": "codegraph",
-            "args": [
-                "serve",
-                "--mcp"
-            ]
         }
     }
 }

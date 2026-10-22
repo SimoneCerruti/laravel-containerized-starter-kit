@@ -93,7 +93,6 @@
             "Bash(gh issue list*)",
             "Bash(./vendor/bin/phpstan analyse *)",
             "Bash(composer stan *)",
-            "mcp__codegraph__*",
             "Bash(cat .env.testing)",
             "Bash(grep * .env.testing)",
             "Bash(grep * *.env.testing)",
@@ -106,8 +105,7 @@
     "enableAllProjectMcpServers": true,
     "enabledMcpjsonServers": [
         "laravel-boost",
-        "context7",
-        "codegraph"
+        "context7"
     ],
     "hooks": {
         "PreToolUse": [
@@ -158,16 +156,6 @@
                     {
                         "type": "command",
                         "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-php.sh\""
-                    }
-                ]
-            }
-        ],
-        "UserPromptSubmit": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "codegraph prompt-hook"
                     }
                 ]
             }
