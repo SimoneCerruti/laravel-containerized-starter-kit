@@ -92,10 +92,10 @@ describe('with the questions', function (): void {
             ->expectsConfirmation('Multilingual UI?', 'no')
             ->expectsChoice('Roles and permissions', 'none', ['none', 'permission', 'None', 'spatie/laravel-permission'])
             ->expectsChoice('Optional modules', [], [
-                'socialite', 'money', 'media-library', 'settings', 'tags', 'saloon', 'standards', 'backup', 'csv', 'pdf', 'scout', 'slack', 'newsletter', 'sitemap',
+                'socialite', 'money', 'media-library', 'settings', 'tags', 'saloon', 'standards', 'backup', 'csv', 'pdf', 'scout', 'slack', 'newsletter', 'sitemap', 'debugbar', 'nightwatch',
                 'Social login (Socialite)', 'Money (AsMoney cast, minor units)', 'Media library', 'Settings', 'Tags', 'Saloon (API integrations)',
                 'ISO standards (countries, currencies, languages)', 'Backups', 'CSV import/export', 'PDF generation', 'Search (Scout + Meilisearch)',
-                'Slack notifications', 'Newsletter', 'Sitemap',
+                'Slack notifications', 'Newsletter', 'Sitemap', 'Debugbar (development only)', 'Nightwatch (monitoring)',
             ])
             ->expectsConfirmation('Add the default deploy workflow?', 'no')
             ->expectsConfirmation('Add the AI tooling (Boost, rules, guidelines)?', 'no')
@@ -127,10 +127,10 @@ describe('with the questions', function (): void {
             ->expectsConfirmation('Multilingual UI?', 'no')
             ->expectsChoice('Roles and permissions', 'none', ['none', 'permission', 'None', 'spatie/laravel-permission'])
             ->expectsChoice('Optional modules', ['backup'], [
-                'socialite', 'money', 'media-library', 'settings', 'tags', 'saloon', 'standards', 'backup', 'csv', 'pdf', 'scout', 'slack', 'newsletter', 'sitemap',
+                'socialite', 'money', 'media-library', 'settings', 'tags', 'saloon', 'standards', 'backup', 'csv', 'pdf', 'scout', 'slack', 'newsletter', 'sitemap', 'debugbar', 'nightwatch',
                 'Social login (Socialite)', 'Money (AsMoney cast, minor units)', 'Media library', 'Settings', 'Tags', 'Saloon (API integrations)',
                 'ISO standards (countries, currencies, languages)', 'Backups', 'CSV import/export', 'PDF generation', 'Search (Scout + Meilisearch)',
-                'Slack notifications', 'Newsletter', 'Sitemap',
+                'Slack notifications', 'Newsletter', 'Sitemap', 'Debugbar (development only)', 'Nightwatch (monitoring)',
             ])
             ->expectsConfirmation('Upload backups to Google Drive?', 'yes')
             ->expectsConfirmation('Add the default deploy workflow?', 'no')
@@ -158,10 +158,10 @@ describe('with the questions', function (): void {
         writeModuleManifest($project, 'socialite', "['variants' => ['google' => [], 'github' => []]]");
 
         $optional_modules = [
-            'socialite', 'money', 'media-library', 'settings', 'tags', 'saloon', 'standards', 'backup', 'csv', 'pdf', 'scout', 'slack', 'newsletter', 'sitemap',
+            'socialite', 'money', 'media-library', 'settings', 'tags', 'saloon', 'standards', 'backup', 'csv', 'pdf', 'scout', 'slack', 'newsletter', 'sitemap', 'debugbar', 'nightwatch',
             'Social login (Socialite)', 'Money (AsMoney cast, minor units)', 'Media library', 'Settings', 'Tags', 'Saloon (API integrations)',
             'ISO standards (countries, currencies, languages)', 'Backups', 'CSV import/export', 'PDF generation', 'Search (Scout + Meilisearch)',
-            'Slack notifications', 'Newsletter', 'Sitemap',
+            'Slack notifications', 'Newsletter', 'Sitemap', 'Debugbar (development only)', 'Nightwatch (monitoring)',
         ];
 
         artisan('starter-kit:install', ['--base-path' => $project])

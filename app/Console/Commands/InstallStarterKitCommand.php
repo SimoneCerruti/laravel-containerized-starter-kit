@@ -25,7 +25,7 @@ use function Safe\json_decode;
 #[Signature('starter-kit:install {--answers= : Path of a JSON file with the answers, to run without questions} {--base-path= : Project to install into (defaults to this one)}')]
 #[Description('Ask the setup questions, install the selected modules and remove the starter kit')]
 final class InstallStarterKitCommand extends Command {
-    private const OPTIONAL_MODULES = [
+    private const array OPTIONAL_MODULES = [
         'socialite' => 'Social login (Socialite)',
         'money' => 'Money (AsMoney cast, minor units)',
         'media-library' => 'Media library',
@@ -40,6 +40,8 @@ final class InstallStarterKitCommand extends Command {
         'slack' => 'Slack notifications',
         'newsletter' => 'Newsletter',
         'sitemap' => 'Sitemap',
+        'debugbar' => 'Debugbar (development only)',
+        'nightwatch' => 'Nightwatch (monitoring)',
     ];
 
     public function handle(): int {

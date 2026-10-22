@@ -11,6 +11,8 @@ describe('health route', function (): void {
     });
 
     it('fails while the database is unreachable', function (): void {
+        $default_connection = config()->string('database.default');
+
         config([
             'database.connections.unreachable' => [
                 ...config()->array('database.connections.pgsql'),
@@ -21,6 +23,9 @@ describe('health route', function (): void {
         ]);
 
         $this->get('/up')->assertServerError();
+
+        // RefreshDatabase rolls back on the default connection: leave it where the transaction was opened.
+        config(['database.default' => $default_connection]);
     });
 });
 

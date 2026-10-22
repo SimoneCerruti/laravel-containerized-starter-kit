@@ -18,7 +18,7 @@ RUN apt-get update && \
     bash \
     logrotate \
     gettext-base \
-    postgresql-client \
+    gnupg \
     libfreetype6-dev \
     libjpeg62-turbo-dev \
     libpng-dev \
@@ -28,6 +28,17 @@ RUN apt-get update && \
     pngquant \
     gifsicle \
     webp && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# pg_dump (backups, schema dumps) refuses to dump a server newer than itself, and the Debian repo ships
+# an older client than the database: take it from the PostgreSQL repo and keep the major in step with
+# the `postgres` image of docker-compose.local.yml, deploy/compose.yml and the CI workflows.
+RUN install -d -m 0755 /etc/apt/keyrings && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends postgresql-client-18 && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp && \
@@ -89,6 +100,8 @@ COPY ./docker/configs/nginx-supervisor.conf /etc/supervisor/conf.d/nginx.conf
 
 # Setup php-fpm supervisor
 COPY ./docker/configs/php-fpm-supervisor.conf /etc/supervisor/conf.d/php-fpm.conf
+
+# @kit:web-common
 
 # Setup logrotate
 COPY ./docker/configs/logrotate /etc/logrotate.d/laravel
