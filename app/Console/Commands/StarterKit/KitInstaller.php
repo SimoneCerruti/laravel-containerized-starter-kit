@@ -102,6 +102,10 @@ final class KitInstaller {
             }
         }
 
+        if ($answers->setup_guide) {
+            $this->writeSetupGuide($active, $answers, $replacer);
+        }
+
         $this->saveAnswers($answers);
         $this->run('vendor/bin/pint --parallel');
         $this->removeKit();
@@ -325,6 +329,33 @@ final class KitInstaller {
         }
 
         $this->run(['composer', 'dump-autoload']);
+    }
+
+    /**
+     * Composes `SETUP.md` from the `SETUP.md` of every active module (and `SETUP.<variant>.md` of its variants):
+     * the steps to do outside the app, kept after the kit is removed.
+     *
+     * @param  list<string>  $active
+     */
+    private function writeSetupGuide(array $active, KitAnswers $answers, PlaceholderReplacer $replacer): void {
+        $sections = [];
+
+        foreach ($active as $module) {
+            foreach (['SETUP.md', ...array_map(fn (string $variant): string => "SETUP.{$variant}.md", $answers->variants()[$module] ?? [])] as $file) {
+                $path = $this->modulePath($module).'/'.$file;
+
+                if (is_file($path)) {
+                    $sections[] = trim($replacer->replace(file_get_contents($path)));
+                }
+            }
+        }
+
+        if ($sections === []) {
+            return;
+        }
+
+        $this->say('Writing SETUP.md');
+        file_put_contents($this->base_path.'/SETUP.md', "# {$answers->app_name}: setup outside the app\n\nThe steps that cannot be done by the code itself. Follow the ones of the modules you use.\n\n".implode("\n\n", $sections)."\n");
     }
 
     private function saveAnswers(KitAnswers $answers): void {

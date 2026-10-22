@@ -20,7 +20,8 @@ A containerized, modular starter kit for Laravel. It starts from a clean Laravel
 Each module lives in `.starterkit/<module>/` and contains:
 
 - `files/`: files copied to the project root, keeping the same path (placeholders are replaced in file names too);
-- `module.php`: the manifest. Keys: `require`, `require-dev`, `fragments` (file => marker => code, or a path to a file in the module), `replace`, `env`, `env_local` (`.env` only, for secrets), `artisan`, `json`, `variants` (e.g. the `filament` plugin packages or the Socialite providers) and `when_disabled` (files and packages to remove when the module is not selected).
+- `SETUP.md` (optional, plus `SETUP.<variant>.md`): the steps to do outside the app (accounts, tokens, DNS, server). If the user accepts the last install question they are composed into `SETUP.md` in the project root, which outlives the kit;
+- `module.php`: the manifest. Keys: `require`, `require-dev`, `fragments` (file => marker => code, or a path to a file in the module), `replace`, `env`, `env_local` (`.env` only, for secrets), `artisan`, `json`, `variants` (e.g. the `filament` plugin packages or the Socialite providers) and `when_disabled` (files and packages to remove when the module is not selected). Prefer adding things from the module (files, fragments on a `@kit:` marker, e.g. `# @kit:gitignore`) over shipping them in the base and removing them with `when_disabled`; `replace` is for edits of existing text.
 
 `core` is always installed. The others (Filament, 2FA, multilingual, roles and permissions, money, media library, Cloudflare, ...) depend on the answers.
 

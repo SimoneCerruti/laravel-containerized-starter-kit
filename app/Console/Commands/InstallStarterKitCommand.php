@@ -130,6 +130,7 @@ final class InstallStarterKitCommand extends Command {
         $answers['deploy'] = confirm('Add the default deploy workflow?', default: false);
         $answers = [...$answers, ...$this->askAiTooling()];
         $answers['cloudflare'] = confirm('Is the app behind Cloudflare?', default: false);
+        $answers['setup_guide'] = confirm('Write SETUP.md with the steps to do outside the app (deploy, monitoring, ...)?', default: true);
 
         return KitAnswers::fromArray($answers);
     }

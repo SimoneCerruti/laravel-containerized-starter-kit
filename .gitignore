@@ -36,3 +36,4 @@ docs/plans/**
 /.claude/settings.local.json
 CLAUDE.local.md
 .env.testing
+# @kit:gitignore

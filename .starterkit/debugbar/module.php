@@ -11,12 +11,12 @@ return [
     'require-dev' => [
         'fruitcake/laravel-debugbar' => '^4.4',
     ],
-    'replace' => [
+    'fragments' => [
         '.gitignore' => [
-            "docs/plans/**\n" => "docs/plans/**\n/storage/debugbar\n",
+            'gitignore' => '/storage/debugbar',
         ],
         '.dockerignore' => [
-            "/storage/clockwork\n" => "/storage/clockwork\n/storage/debugbar\n",
+            'dockerignore' => '/storage/debugbar',
         ],
     ],
 ];

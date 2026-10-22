@@ -37,9 +37,4 @@ return [
             ],
         ],
     ],
-    'when_disabled' => [
-        'remove_files' => [
-            '.ai/rules/testing_permissions.md',
-        ],
-    ],
 ];

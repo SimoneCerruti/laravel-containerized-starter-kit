@@ -100,6 +100,7 @@ describe('with the questions', function (): void {
             ->expectsConfirmation('Add the default deploy workflow?', 'no')
             ->expectsConfirmation('Add the AI tooling (Boost, rules, guidelines)?', 'no')
             ->expectsConfirmation('Is the app behind Cloudflare?', 'no')
+            ->expectsConfirmation('Write SETUP.md with the steps to do outside the app (deploy, monitoring, ...)?', 'no')
             ->assertSuccessful();
 
         $saved = json_decode((string) file_get_contents($project.'/starter-kit.json'), true);
@@ -136,6 +137,7 @@ describe('with the questions', function (): void {
             ->expectsConfirmation('Add the default deploy workflow?', 'no')
             ->expectsConfirmation('Add the AI tooling (Boost, rules, guidelines)?', 'no')
             ->expectsConfirmation('Is the app behind Cloudflare?', 'no')
+            ->expectsConfirmation('Write SETUP.md with the steps to do outside the app (deploy, monitoring, ...)?', 'no')
             ->assertSuccessful();
 
         $saved = json_decode((string) file_get_contents($project.'/starter-kit.json'), true);
@@ -195,6 +197,7 @@ describe('with the questions', function (): void {
             ->expectsQuestion('Context7 API key (kept in .env only)', 'c7_secret')
             ->expectsConfirmation('Add CodeGraph (local code index and MCP server)?', 'yes')
             ->expectsConfirmation('Is the app behind Cloudflare?', 'yes')
+            ->expectsConfirmation('Write SETUP.md with the steps to do outside the app (deploy, monitoring, ...)?', 'yes')
             ->assertSuccessful();
 
         $saved = json_decode((string) file_get_contents($project.'/starter-kit.json'), true);
@@ -208,6 +211,7 @@ describe('with the questions', function (): void {
             'locales' => ['en', 'it'],
             'default_locale' => 'it',
             'permissions' => 'shield',
+            'setup_guide' => true,
             'modules' => ['money'],
             'socialite_providers' => ['google', 'github'],
             'socialite_registration' => true,

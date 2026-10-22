@@ -60,6 +60,7 @@ final readonly class KitAnswers {
         public string $context7_key = '',
         public bool $cloudflare = false,
         public bool $backup_google_drive = false,
+        public bool $setup_guide = false,
     ) {
         $this->assertOneOf('app_type', $this->app_type, self::APP_TYPES);
         $this->assertOneOf('permissions', $this->permissions, self::PERMISSIONS);

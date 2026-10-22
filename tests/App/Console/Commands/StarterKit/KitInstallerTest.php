@@ -45,6 +45,33 @@ PHP);
             ->and(file_get_contents($project.'/config/app.txt'))->toBe('driver=new');
     });
 
+    test('composes SETUP.md from the active modules and their variants when asked', function (): void {
+        $project = createProjectFixture([
+            '.starterkit/core/SETUP.md' => '## Core for __KIT_APP_SLUG__',
+            '.starterkit/socialite/SETUP.md' => '## Social',
+            '.starterkit/socialite/SETUP.google.md' => '### Google',
+            '.starterkit/socialite/SETUP.github.md' => '### GitHub',
+            '.starterkit/backup/SETUP.md' => '## Backup',
+        ]);
+        writeModuleManifest($project, 'socialite', "['variants' => ['google' => [], 'github' => []]]");
+        writeModuleManifest($project, 'backup', '[]');
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api', 'socialite_providers' => ['google'], 'setup_guide' => true]));
+
+        expect(file_get_contents($project.'/SETUP.md'))->toContain('# My App: setup outside the app')
+            ->toContain("## Core for my-app\n\n## Social\n\n### Google\n")
+            ->not->toContain('GitHub')
+            ->not->toContain('## Backup');
+    });
+
+    test('does not write SETUP.md unless asked', function (): void {
+        $project = createProjectFixture(['.starterkit/core/SETUP.md' => '## Core']);
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api']));
+
+        expect($project.'/SETUP.md')->not->toBeFile();
+    });
+
     test('merges the variants of the answers into the module manifest', function (): void {
         $project = createProjectFixture();
         $commands = fakeProcessesRecordingCommands();
