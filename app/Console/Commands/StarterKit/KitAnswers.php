@@ -59,6 +59,7 @@ final readonly class KitAnswers {
         public string $gh_token = '',
         public string $context7_key = '',
         public bool $cloudflare = false,
+        public bool $backup_google_drive = false,
     ) {
         $this->assertOneOf('app_type', $this->app_type, self::APP_TYPES);
         $this->assertOneOf('permissions', $this->permissions, self::PERMISSIONS);
@@ -131,6 +132,10 @@ final readonly class KitAnswers {
      */
     public function variants(): array {
         $variants = $this->socialite_providers === [] ? [] : ['socialite' => $this->socialite_providers];
+
+        if ($this->backup_google_drive && \in_array('backup', $this->modules, true)) {
+            $variants['backup'] = ['google-drive'];
+        }
 
         if (! $this->hasFilament()) {
             return $variants;

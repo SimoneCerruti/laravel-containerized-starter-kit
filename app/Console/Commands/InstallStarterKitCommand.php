@@ -123,6 +123,7 @@ final class InstallStarterKitCommand extends Command {
         $answers['modules'] = multiselect('Optional modules', self::OPTIONAL_MODULES);
         $answers = [...$answers, ...$this->askSocialite($answers['modules'], $has_public_site)];
         $answers['modules'] = array_values(array_diff($answers['modules'], ['socialite']));
+        $answers['backup_google_drive'] = \in_array('backup', $answers['modules'], true) && confirm('Upload backups to Google Drive?', default: false);
 
         $answers['deploy'] = confirm('Add the default deploy workflow?', default: false);
         $answers = [...$answers, ...$this->askAiTooling()];

@@ -109,6 +109,41 @@ describe('with the questions', function (): void {
             ->and($saved['app_type'])->toBe('api')
             ->and($saved['ai_tooling'])->toBeFalse();
     });
+    test('asks whether to upload the backups to Google Drive when the backup module is selected', function (): void {
+        $project = createProjectFixture();
+        mkdir($project.'/.starterkit/backup', 0755, true);
+        writeModuleManifest($project, 'backup', "['variants' => ['google-drive' => []]]");
+
+        artisan('starter-kit:install', ['--base-path' => $project])
+            ->expectsQuestion('Application name', 'Safe API')
+            ->expectsQuestion('Slug (Docker images, database, network)', 'safe-api')
+            ->expectsQuestion('Vendor (Docker image, composer)', 'acme')
+            ->expectsChoice('License', 'MIT', ['MIT', 'proprietary', 'Apache-2.0', 'GPL-3.0-or-later'])
+            ->expectsQuestion('Local port', '8080')
+            ->expectsQuestion("Users' real timezone", 'Europe/Rome')
+            ->expectsQuestion('GitHub repository (owner/repo, optional)', '')
+            ->expectsChoice('Application type', 'api', ['site_with_backoffice', 'backoffice', 'site', 'api', 'Public site + Filament back office', 'Filament back office only', 'Public site without back office', 'API only'])
+            ->expectsConfirmation('Audit logins?', 'no')
+            ->expectsConfirmation('Multilingual UI?', 'no')
+            ->expectsChoice('Roles and permissions', 'none', ['none', 'permission', 'None', 'spatie/laravel-permission'])
+            ->expectsChoice('Optional modules', ['backup'], [
+                'socialite', 'money', 'media-library', 'settings', 'tags', 'saloon', 'standards', 'backup', 'csv', 'pdf', 'scout', 'slack', 'newsletter', 'sitemap',
+                'Social login (Socialite)', 'Money (AsMoney cast, minor units)', 'Media library', 'Settings', 'Tags', 'Saloon (API integrations)',
+                'ISO standards (countries, currencies, languages)', 'Backups', 'CSV import/export', 'PDF generation', 'Search (Scout + Meilisearch)',
+                'Slack notifications', 'Newsletter', 'Sitemap',
+            ])
+            ->expectsConfirmation('Upload backups to Google Drive?', 'yes')
+            ->expectsConfirmation('Add the default deploy workflow?', 'no')
+            ->expectsConfirmation('Add the AI tooling (Boost, rules, guidelines)?', 'no')
+            ->expectsConfirmation('Is the app behind Cloudflare?', 'no')
+            ->assertSuccessful();
+
+        $saved = json_decode((string) file_get_contents($project.'/starter-kit.json'), true);
+
+        expect($saved['modules'])->toBe(['backup'])
+            ->and($saved['backup_google_drive'])->toBeTrue();
+    });
+
     test('asks the Filament, localization, permissions, social login and AI tooling questions', function (): void {
         $project = createProjectFixture();
 

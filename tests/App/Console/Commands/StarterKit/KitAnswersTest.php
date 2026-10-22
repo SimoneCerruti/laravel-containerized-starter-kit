@@ -81,6 +81,12 @@ describe('variants', function (): void {
         expect(KitAnswers::fromArray(['app_name' => 'A', 'socialite_providers' => ['google', 'apple']])->variants())->toBe(['socialite' => ['google', 'apple']])
             ->and(KitAnswers::fromArray(['app_name' => 'A'])->variants())->toBe([]);
     });
+
+    test('adds the google-drive variant of the backup module only when the module is selected and Drive is wanted', function (): void {
+        expect(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api', 'modules' => ['backup'], 'backup_google_drive' => true])->variants())->toBe(['backup' => ['google-drive']])
+            ->and(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api', 'modules' => ['backup']])->variants())->toBe([])
+            ->and(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api', 'backup_google_drive' => true])->variants())->toBe([]);
+    });
 });
 
 describe('placeholders', function (): void {

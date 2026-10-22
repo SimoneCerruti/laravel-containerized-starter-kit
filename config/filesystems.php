@@ -62,6 +62,8 @@ return [
             'report' => false,
         ],
 
+        // @kit:filesystem-disks
+
     ],
 
     /*
