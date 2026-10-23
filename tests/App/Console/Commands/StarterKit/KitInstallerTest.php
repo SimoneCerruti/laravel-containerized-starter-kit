@@ -137,6 +137,25 @@ PHP);
         ]);
     });
 
+    test('keeps the empty JSON objects of a file it merges into', function (): void {
+        $project = createProjectFixture(['.mcp.json' => '{"env": {}, "servers": {}}']);
+        fakeProcessesRecordingCommands();
+        writeModuleManifest($project, 'extra', "['json' => ['files' => ['.mcp.json' => ['servers.extra' => ['command' => 'extra']]]]]");
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api', 'modules' => ['extra']]));
+
+        expect(json_decode(file_get_contents($project.'/.mcp.json'), true))->toBe(['env' => [], 'servers' => ['extra' => ['command' => 'extra']]])
+            ->and(file_get_contents($project.'/.mcp.json'))->toContain('"env": {}');
+    });
+
+    test('reports the placeholders left without a value in SETUP.md', function (): void {
+        $project = createProjectFixture(['.starterkit/core/SETUP.md' => '## Core __KIT_NOT_A_THING__']);
+
+        $unresolved = (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api', 'setup_guide' => true]));
+
+        expect($unresolved)->toBe(['__KIT_NOT_A_THING__']);
+    });
+
     test('keeps the files of the modules that are selected', function (): void {
         $project = createProjectFixture(['.ai/rules/filament.md' => '---']);
         writeModuleManifest($project, 'filament', "['when_disabled' => ['remove_files' => ['.ai/rules/filament.md']]]");

@@ -106,7 +106,7 @@ final class KitInstaller {
         $this->writeLicenseFile($replacer, $answers);
 
         if ($answers->setup_guide) {
-            $this->writeSetupGuide($active, $answers, $replacer);
+            $unresolved = array_values(array_unique([...$unresolved, ...$this->writeSetupGuide($active, $answers, $replacer)]));
         }
 
         $this->saveAnswers($answers);
@@ -385,8 +385,9 @@ final class KitInstaller {
      * the steps to do outside the app, kept after the kit is removed.
      *
      * @param  list<string>  $active
+     * @return list<string> the placeholders left without a value
      */
-    private function writeSetupGuide(array $active, KitAnswers $answers, PlaceholderReplacer $replacer): void {
+    private function writeSetupGuide(array $active, KitAnswers $answers, PlaceholderReplacer $replacer): array {
         $sections = [];
 
         foreach ($active as $module) {
@@ -400,11 +401,14 @@ final class KitInstaller {
         }
 
         if ($sections === []) {
-            return;
+            return [];
         }
 
         $this->say('Writing SETUP.md');
-        file_put_contents($this->base_path.'/SETUP.md', "# {$answers->app_name}: setup outside the app\n\nThe steps that cannot be done by the code itself. Follow the ones of the modules you use.\n\n".implode("\n\n", $sections)."\n");
+        $contents = "# {$answers->app_name}: setup outside the app\n\nThe steps that cannot be done by the code itself. Follow the ones of the modules you use.\n\n".implode("\n\n", $sections)."\n";
+        file_put_contents($this->base_path.'/SETUP.md', $contents);
+
+        return $replacer->findUnresolved($contents);
     }
 
     private function saveAnswers(KitAnswers $answers): void {
@@ -456,9 +460,20 @@ final class KitInstaller {
      * @return array<string, mixed>
      */
     private function readJson(string $relative_path): array {
-        $decoded = json_decode((string) file_get_contents($this->base_path.'/'.$relative_path), true, flags: JSON_THROW_ON_ERROR);
+        $decoded = $this->objectsToArrays(json_decode((string) file_get_contents($this->base_path.'/'.$relative_path), flags: JSON_THROW_ON_ERROR));
 
         return \is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Empty JSON objects stay objects, so writing the file back does not turn `{}` into `[]`.
+     */
+    private function objectsToArrays(mixed $value): mixed {
+        if ($value instanceof \stdClass && (array) $value === []) {
+            return $value;
+        }
+
+        return \is_array($value) || $value instanceof \stdClass ? array_map($this->objectsToArrays(...), (array) $value) : $value;
     }
 
     private function deletePath(string $path): void {

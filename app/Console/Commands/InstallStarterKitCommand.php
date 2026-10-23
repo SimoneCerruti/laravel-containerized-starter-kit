@@ -91,7 +91,7 @@ final class InstallStarterKitCommand extends Command {
             'app_name' => $app_name,
             'app_slug' => $app_slug,
             'vendor' => text('Vendor (Docker image, composer)', default: $app_slug, required: true),
-            'license' => select('License', ['MIT', 'proprietary', 'Apache-2.0', 'GPL-3.0-or-later'], default: 'MIT'),
+            'license' => select('License', KitAnswers::LICENSES, default: 'MIT'),
             'port' => (int) text('Local port', default: '8080', required: true, validate: fn (string $value): ?string => ctype_digit($value) ? null : 'The port must be a number.'),
             'timezone' => text("Users' real timezone", default: 'Europe/Rome', required: true),
             'gh_repository' => text('GitHub repository (owner/repo, optional)'),

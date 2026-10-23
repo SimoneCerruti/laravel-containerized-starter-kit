@@ -39,3 +39,29 @@ it('fails when a user with the same email already exists', function (): void {
 
     expect(User::query()->count())->toBe(1);
 });
+
+it('creates the user without prompts when every option is given', function (): void {
+    artisan('users:create', ['--first-name' => '0', '--last-name' => 'Lovelace', '--email' => 'ada@example.com', '--password' => 'a-long-password'])
+        ->assertSuccessful();
+
+    expect(User::query()->where('email', 'ada@example.com')->firstOrFail()->first_name)->toBe('0');
+});
+
+it('validates the email and the password given as options', function (string $option, string $value, string $message): void {
+    artisan('users:create', ['--first-name' => 'Ada', '--last-name' => 'Lovelace', '--email' => 'ada@example.com', '--password' => 'a-long-password', $option => $value])
+        ->expectsOutputToContain($message)
+        ->assertFailed();
+
+    expect(User::query()->count())->toBe(0);
+})->with([
+    'invalid email' => ['--email', 'not-an-email', 'email'],
+    'short password' => ['--password', 'short', 'at least 12'],
+]);
+
+it('treats the email as case insensitive when looking for a duplicate', function (): void {
+    User::factory()->create(['email' => 'ada@example.com']);
+
+    artisan('users:create', ['--first-name' => 'Ada', '--last-name' => 'Lovelace', '--email' => 'Ada@Example.com', '--password' => 'a-long-password'])
+        ->expectsOutputToContain('already exists')
+        ->assertFailed();
+});

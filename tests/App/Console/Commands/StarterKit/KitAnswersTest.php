@@ -29,6 +29,19 @@ describe('fromArray', function (): void {
     });
 });
 
+describe('license', function (): void {
+    test('rejects a license without a text to write', function (): void {
+        expect(fn () => KitAnswers::fromArray(['app_name' => 'A', 'license' => 'WTFPL']))
+            ->toThrow(InvalidArgumentException::class, 'The answer [license] must be one of');
+    });
+
+    test('has a text for every license it accepts', function (): void {
+        foreach (KitAnswers::LICENSES as $license) {
+            expect(base_path(".starterkit/core/licenses/{$license}.txt"))->toBeFile();
+        }
+    });
+});
+
 describe('activeModules', function (): void {
     test('always includes core, and filament for the types with a back office', function (): void {
         expect(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api'])->activeModules())->toBe(['core'])
