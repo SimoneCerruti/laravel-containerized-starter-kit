@@ -26,7 +26,6 @@
     "require-dev": {
         "driftingly/rector-laravel": "^2.6",
         "fakerphp/faker": "^1.23",
-        "fruitcake/laravel-debugbar": "^4.4",
         "larastan/larastan": "^3.13",
         "laravel/boost": "^2.2",
         "laravel/pail": "^1.2.5",
@@ -39,7 +38,6 @@
         "pestphp/pest-plugin-browser": "^5.1",
         "pestphp/pest-plugin-faker": "^5.0",
         "pestphp/pest-plugin-laravel": "^5.0",
-        "pestphp/pest-plugin-livewire": "^5.0",
         "pestphp/pest-plugin-mutate": "^5.0",
         "pestphp/pest-plugin-phpstan": "^5.2",
         "pestphp/pest-plugin-rector": "^5.0",
@@ -145,17 +143,12 @@
             "Composer\\Config::disableProcessTimeout",
             "npx -y ccstatusline@latest --config /var/www/html/.claude/ccstatusline/settings.json"
         ],
-        "ai:update": [
-            "@php artisan boost:update --ansi",
-            "@php artisan ai:link-hooks --ansi"
-        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"
         ],
         "post-update-cmd": [
-            "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
-            "@composer ai:update"
+            "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
         ],
         "post-root-package-install": [
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""

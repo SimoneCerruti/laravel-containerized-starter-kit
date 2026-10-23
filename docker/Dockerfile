@@ -18,7 +18,7 @@ RUN apt-get update && \
     bash \
     logrotate \
     gettext-base \
-    postgresql-client \
+    gnupg \
     libfreetype6-dev \
     libjpeg62-turbo-dev \
     libpng-dev \
@@ -28,6 +28,17 @@ RUN apt-get update && \
     pngquant \
     gifsicle \
     webp && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# pg_dump (backups, schema dumps) refuses to dump a server newer than itself, and the Debian repo ships
+# an older client than the database: take it from the PostgreSQL repo and keep the major in step with
+# the `postgres` image of docker-compose.local.yml, deploy/compose.yml and the CI workflows.
+RUN install -d -m 0755 /etc/apt/keyrings && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends postgresql-client-18 && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp && \
@@ -66,6 +77,7 @@ FROM base AS web-common
 
 # Nginx config
 COPY ./docker/configs/nginx.conf /etc/nginx/sites-available/default.template
+COPY ./docker/configs/nginx-real-ip.conf /etc/nginx/conf.d/real-ip.conf
 
 # Setup PHP-FPM pool config
 COPY ./docker/configs/php-fpm-www.conf /usr/local/etc/php-fpm.d/www.conf.template
@@ -89,6 +101,8 @@ COPY ./docker/configs/nginx-supervisor.conf /etc/supervisor/conf.d/nginx.conf
 
 # Setup php-fpm supervisor
 COPY ./docker/configs/php-fpm-supervisor.conf /etc/supervisor/conf.d/php-fpm.conf
+
+# @kit:web-common
 
 # Setup logrotate
 COPY ./docker/configs/logrotate /etc/logrotate.d/laravel
@@ -210,11 +224,7 @@ RUN npx --yes playwright@1.64.0 install-deps chromium && \
 RUN rm -f /usr/bin/sg && \
     npm install -g @ast-grep/cli@0.45.3 && npm cache clean --force
 
-# CodeGraph (local code-intelligence graph + MCP server for the agents). The npm package ships
-# the native binary as an optionalDependency, so the build needs no runtime download. Telemetry
-# defaults to ON upstream and the home dir isn't a persisted volume, so it's disabled via env.
-ENV CODEGRAPH_TELEMETRY=0
-RUN npm install -g @colbymchenry/codegraph@1.6.0 && npm cache clean --force
+# @kit:dev-tools
 
 # Reap orphaned `playwright run-server` processes left by Pest browser tests (dev only —
 # pest-plugin-browser never terminates the process it spawns; see

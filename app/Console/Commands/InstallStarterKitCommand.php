@@ -25,7 +25,7 @@ use function Safe\json_decode;
 #[Signature('starter-kit:install {--answers= : Path of a JSON file with the answers, to run without questions} {--base-path= : Project to install into (defaults to this one)}')]
 #[Description('Ask the setup questions, install the selected modules and remove the starter kit')]
 final class InstallStarterKitCommand extends Command {
-    private const OPTIONAL_MODULES = [
+    private const array OPTIONAL_MODULES = [
         'socialite' => 'Social login (Socialite)',
         'money' => 'Money (AsMoney cast, minor units)',
         'media-library' => 'Media library',
@@ -40,6 +40,8 @@ final class InstallStarterKitCommand extends Command {
         'slack' => 'Slack notifications',
         'newsletter' => 'Newsletter',
         'sitemap' => 'Sitemap',
+        'debugbar' => 'Debugbar (development only)',
+        'nightwatch' => 'Nightwatch (monitoring)',
     ];
 
     public function handle(): int {
@@ -89,10 +91,12 @@ final class InstallStarterKitCommand extends Command {
             'app_name' => $app_name,
             'app_slug' => $app_slug,
             'vendor' => text('Vendor (Docker image, composer)', default: $app_slug, required: true),
-            'license' => select('License', ['MIT', 'proprietary', 'Apache-2.0', 'GPL-3.0-or-later'], default: 'MIT'),
+            'license' => select('License', KitAnswers::LICENSES, default: 'MIT'),
             'port' => (int) text('Local port', default: '8080', required: true, validate: fn (string $value): ?string => ctype_digit($value) ? null : 'The port must be a number.'),
             'timezone' => text("Users' real timezone", default: 'Europe/Rome', required: true),
             'gh_repository' => text('GitHub repository (owner/repo, optional)'),
+            'author_name' => $author_name = text('Author name (optional)'),
+            'author_email' => $author_name === '' ? '' : text('Author email (optional)'),
             'app_type' => select('Application type', [
                 'site_with_backoffice' => 'Public site + Filament back office',
                 'backoffice' => 'Filament back office only',
@@ -128,6 +132,7 @@ final class InstallStarterKitCommand extends Command {
         $answers['deploy'] = confirm('Add the default deploy workflow?', default: false);
         $answers = [...$answers, ...$this->askAiTooling()];
         $answers['cloudflare'] = confirm('Is the app behind Cloudflare?', default: false);
+        $answers['setup_guide'] = confirm('Write SETUP.md with the steps to do outside the app (deploy, monitoring, ...)?', default: true);
 
         return KitAnswers::fromArray($answers);
     }

@@ -16,10 +16,4 @@ return [
             'pest-helpers' => 'fragments/pest-helpers.php',
         ],
     ],
-    'when_disabled' => [
-        'remove_files' => [
-            '.ai/rules/services.md',
-            '.ai/rules/testing_services.md',
-        ],
-    ],
 ];

@@ -19,9 +19,6 @@ services:
       - "~/.ssh:/var/www/.ssh"
       - "claude_home:/var/www/.claude"
     environment:
-      - GH_TOKEN=${GH_TOKEN:-}
-      - GITHUB_PERSONAL_ACCESS_TOKEN=${GH_TOKEN:-}
-      - CONTEXT7_API_KEY=${CONTEXT7_API_KEY:-}
       # @kit:compose-environment
     extra_hosts:
       - "host.docker.internal:host-gateway"

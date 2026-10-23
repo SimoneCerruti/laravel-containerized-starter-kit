@@ -38,7 +38,7 @@ describe('load', function (): void {
     'replace' => ['f.txt' => ['old' => 'new']],
     'fragments' => ['f.php' => ['marker' => 'code();']],
     'when_disabled' => ['remove_files' => ['a.md'], 'remove_packages' => ['a/b']],
-    'json' => ['composer' => ['extra.x' => 'y'], 'npm' => ['name' => 'z']],
+    'json' => ['composer' => ['extra.x' => 'y'], 'npm' => ['name' => 'z'], 'files' => ['x.json' => ['a.b' => ['v']]]],
 ]
 PHP);
 
@@ -54,6 +54,7 @@ PHP);
             ->and($manifest->fragments)->toBe(['f.php' => ['marker' => 'code();']])
             ->and($manifest->remove_files)->toBe(['a.md'])
             ->and($manifest->remove_packages)->toBe(['a/b'])
+            ->and($manifest->json_files)->toBe(['x.json' => ['a.b' => ['v']]])
             ->and($manifest->composer_config)->toBe(['extra.x' => 'y'])
             ->and($manifest->npm_config)->toBe(['name' => 'z']);
     });

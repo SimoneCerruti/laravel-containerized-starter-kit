@@ -12,6 +12,9 @@ return [
     'require' => [
         'filament/filament' => '^5.0',
     ],
+    'require-dev' => [
+        'pestphp/pest-plugin-livewire' => '^5.0',
+    ],
     'json' => [
         'composer' => [
             'scripts.post-autoload-dump' => ['@php artisan filament:upgrade'],
@@ -36,14 +39,6 @@ return [
             'user-imports' => "use Filament\\Models\\Contracts\\FilamentUser;\nuse Filament\\Models\\Contracts\\HasName;\nuse Filament\\Panel;",
             'user-implements' => 'FilamentUser, HasName,',
             'user-methods' => 'fragments/user-methods.php',
-        ],
-    ],
-    'when_disabled' => [
-        'remove_files' => [
-            '.ai/rules/filament.md',
-            '.ai/rules/testing_filament.md',
-            '.ai/rules/enums_filament.md',
-            '.ai/rules/testing_models_filament.md',
         ],
     ],
 ];

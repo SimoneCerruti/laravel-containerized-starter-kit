@@ -87,19 +87,21 @@ describe('with the questions', function (): void {
             ->expectsQuestion('Local port', '8080')
             ->expectsQuestion("Users' real timezone", 'Europe/Rome')
             ->expectsQuestion('GitHub repository (owner/repo, optional)', '')
+            ->expectsQuestion('Author name (optional)', '')
             ->expectsChoice('Application type', 'api', ['site_with_backoffice', 'backoffice', 'site', 'api', 'Public site + Filament back office', 'Filament back office only', 'Public site without back office', 'API only'])
             ->expectsConfirmation('Audit logins?', 'no')
             ->expectsConfirmation('Multilingual UI?', 'no')
             ->expectsChoice('Roles and permissions', 'none', ['none', 'permission', 'None', 'spatie/laravel-permission'])
             ->expectsChoice('Optional modules', [], [
-                'socialite', 'money', 'media-library', 'settings', 'tags', 'saloon', 'standards', 'backup', 'csv', 'pdf', 'scout', 'slack', 'newsletter', 'sitemap',
+                'socialite', 'money', 'media-library', 'settings', 'tags', 'saloon', 'standards', 'backup', 'csv', 'pdf', 'scout', 'slack', 'newsletter', 'sitemap', 'debugbar', 'nightwatch',
                 'Social login (Socialite)', 'Money (AsMoney cast, minor units)', 'Media library', 'Settings', 'Tags', 'Saloon (API integrations)',
                 'ISO standards (countries, currencies, languages)', 'Backups', 'CSV import/export', 'PDF generation', 'Search (Scout + Meilisearch)',
-                'Slack notifications', 'Newsletter', 'Sitemap',
+                'Slack notifications', 'Newsletter', 'Sitemap', 'Debugbar (development only)', 'Nightwatch (monitoring)',
             ])
             ->expectsConfirmation('Add the default deploy workflow?', 'no')
             ->expectsConfirmation('Add the AI tooling (Boost, rules, guidelines)?', 'no')
             ->expectsConfirmation('Is the app behind Cloudflare?', 'no')
+            ->expectsConfirmation('Write SETUP.md with the steps to do outside the app (deploy, monitoring, ...)?', 'no')
             ->assertSuccessful();
 
         $saved = json_decode((string) file_get_contents($project.'/starter-kit.json'), true);
@@ -122,20 +124,22 @@ describe('with the questions', function (): void {
             ->expectsQuestion('Local port', '8080')
             ->expectsQuestion("Users' real timezone", 'Europe/Rome')
             ->expectsQuestion('GitHub repository (owner/repo, optional)', '')
+            ->expectsQuestion('Author name (optional)', '')
             ->expectsChoice('Application type', 'api', ['site_with_backoffice', 'backoffice', 'site', 'api', 'Public site + Filament back office', 'Filament back office only', 'Public site without back office', 'API only'])
             ->expectsConfirmation('Audit logins?', 'no')
             ->expectsConfirmation('Multilingual UI?', 'no')
             ->expectsChoice('Roles and permissions', 'none', ['none', 'permission', 'None', 'spatie/laravel-permission'])
             ->expectsChoice('Optional modules', ['backup'], [
-                'socialite', 'money', 'media-library', 'settings', 'tags', 'saloon', 'standards', 'backup', 'csv', 'pdf', 'scout', 'slack', 'newsletter', 'sitemap',
+                'socialite', 'money', 'media-library', 'settings', 'tags', 'saloon', 'standards', 'backup', 'csv', 'pdf', 'scout', 'slack', 'newsletter', 'sitemap', 'debugbar', 'nightwatch',
                 'Social login (Socialite)', 'Money (AsMoney cast, minor units)', 'Media library', 'Settings', 'Tags', 'Saloon (API integrations)',
                 'ISO standards (countries, currencies, languages)', 'Backups', 'CSV import/export', 'PDF generation', 'Search (Scout + Meilisearch)',
-                'Slack notifications', 'Newsletter', 'Sitemap',
+                'Slack notifications', 'Newsletter', 'Sitemap', 'Debugbar (development only)', 'Nightwatch (monitoring)',
             ])
             ->expectsConfirmation('Upload backups to Google Drive?', 'yes')
             ->expectsConfirmation('Add the default deploy workflow?', 'no')
             ->expectsConfirmation('Add the AI tooling (Boost, rules, guidelines)?', 'no')
             ->expectsConfirmation('Is the app behind Cloudflare?', 'no')
+            ->expectsConfirmation('Write SETUP.md with the steps to do outside the app (deploy, monitoring, ...)?', 'no')
             ->assertSuccessful();
 
         $saved = json_decode((string) file_get_contents($project.'/starter-kit.json'), true);
@@ -158,10 +162,10 @@ describe('with the questions', function (): void {
         writeModuleManifest($project, 'socialite', "['variants' => ['google' => [], 'github' => []]]");
 
         $optional_modules = [
-            'socialite', 'money', 'media-library', 'settings', 'tags', 'saloon', 'standards', 'backup', 'csv', 'pdf', 'scout', 'slack', 'newsletter', 'sitemap',
+            'socialite', 'money', 'media-library', 'settings', 'tags', 'saloon', 'standards', 'backup', 'csv', 'pdf', 'scout', 'slack', 'newsletter', 'sitemap', 'debugbar', 'nightwatch',
             'Social login (Socialite)', 'Money (AsMoney cast, minor units)', 'Media library', 'Settings', 'Tags', 'Saloon (API integrations)',
             'ISO standards (countries, currencies, languages)', 'Backups', 'CSV import/export', 'PDF generation', 'Search (Scout + Meilisearch)',
-            'Slack notifications', 'Newsletter', 'Sitemap',
+            'Slack notifications', 'Newsletter', 'Sitemap', 'Debugbar (development only)', 'Nightwatch (monitoring)',
         ];
 
         artisan('starter-kit:install', ['--base-path' => $project])
@@ -172,6 +176,8 @@ describe('with the questions', function (): void {
             ->expectsQuestion('Local port', '9000')
             ->expectsQuestion("Users' real timezone", 'Europe/Rome')
             ->expectsQuestion('GitHub repository (owner/repo, optional)', 'acme/full-app')
+            ->expectsQuestion('Author name (optional)', 'Jane Doe')
+            ->expectsQuestion('Author email (optional)', 'jane@acme.test')
             ->expectsChoice('Application type', 'site_with_backoffice', ['site_with_backoffice', 'backoffice', 'site', 'api', 'Public site + Filament back office', 'Filament back office only', 'Public site without back office', 'API only'])
             ->expectsQuestion('Main panel id', 'back-office')
             ->expectsConfirmation('Restrict the panel to some email domains?', 'yes')
@@ -195,11 +201,14 @@ describe('with the questions', function (): void {
             ->expectsQuestion('Context7 API key (kept in .env only)', 'c7_secret')
             ->expectsConfirmation('Add CodeGraph (local code index and MCP server)?', 'yes')
             ->expectsConfirmation('Is the app behind Cloudflare?', 'yes')
+            ->expectsConfirmation('Write SETUP.md with the steps to do outside the app (deploy, monitoring, ...)?', 'yes')
             ->assertSuccessful();
 
         $saved = json_decode((string) file_get_contents($project.'/starter-kit.json'), true);
 
         expect($saved)->toMatchArray([
+            'author_name' => 'Jane Doe',
+            'author_email' => 'jane@acme.test',
             'panel_id' => 'back-office',
             'allowed_email_domains' => ['a.com', 'b.com'],
             'force_password_change' => true,
@@ -208,6 +217,7 @@ describe('with the questions', function (): void {
             'locales' => ['en', 'it'],
             'default_locale' => 'it',
             'permissions' => 'shield',
+            'setup_guide' => true,
             'modules' => ['money'],
             'socialite_providers' => ['google', 'github'],
             'socialite_registration' => true,

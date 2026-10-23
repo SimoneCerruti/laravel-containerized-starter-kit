@@ -34,11 +34,7 @@
         }
     },
     "remoteUser": "www-data",
-    "postCreateCommand": "chown -R www-data:www-data /var/www/html 2>/dev/null || true",
-    "mounts": [
-        // @kit:devcontainer-mounts
-        "source=claude-code-config,target=/var/www/.claude,type=volume"
-    ]
+    "postCreateCommand": "chown -R www-data:www-data /var/www/html 2>/dev/null || true"
     // "forwardPorts": [],
     // "runServices": [],
     // "shutdownAction": "none",

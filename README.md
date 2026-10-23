@@ -6,12 +6,13 @@ A containerized, modular starter kit for Laravel. It starts from a clean Laravel
 
 1. Install Laravel normally from this kit.
 2. `composer setup` runs `php artisan starter-kit:install`.
-3. The command asks for the name, slug, vendor, license, port and timezone, then the application type and the optional features.
+3. The command asks for the name, slug, vendor, license, port, timezone, the GitHub repository and the author (both optional), then the application type and the optional features.
 4. Based on the answers it:
    - installs the required Composer packages (`require` and `require-dev`);
    - copies the files of the selected modules;
    - injects code fragments into the shared files (e.g. `User`, `AppServiceProvider`);
    - replaces the `__KIT_*__` placeholders;
+   - writes the `LICENSE` file for the chosen license and sets the license, repository links and author in `composer.json` and `package.json`;
    - updates `.env`, `.env.example`, `composer.json` and `package.json`.
 5. When the installation is done the kit removes itself, and this README is replaced by one that contains only the project name.
 
@@ -20,7 +21,8 @@ A containerized, modular starter kit for Laravel. It starts from a clean Laravel
 Each module lives in `.starterkit/<module>/` and contains:
 
 - `files/`: files copied to the project root, keeping the same path (placeholders are replaced in file names too);
-- `module.php`: the manifest. Keys: `require`, `require-dev`, `fragments` (file => marker => code, or a path to a file in the module), `replace`, `env`, `env_local` (`.env` only, for secrets), `artisan`, `json`, `variants` (e.g. the `filament` plugin packages or the Socialite providers) and `when_disabled` (files and packages to remove when the module is not selected).
+- `SETUP.md` (optional, plus `SETUP.<variant>.md`): the steps to do outside the app (accounts, tokens, DNS, server). If the user accepts the last install question they are composed into `SETUP.md` in the project root, which outlives the kit;
+- `module.php`: the manifest. Keys: `require`, `require-dev`, `fragments` (file => marker => code, or a path to a file in the module), `replace`, `env`, `env_local` (`.env` only, for secrets), `artisan`, `json`, `variants` (e.g. the `filament` plugin packages or the Socialite providers) and `when_disabled` (files and packages to remove when the module is not selected). Prefer adding things from the module (files, fragments on a `@kit:` marker, e.g. `# @kit:gitignore`) over shipping them in the base and removing them with `when_disabled`; `replace` is for edits of existing text. The base files carry only the markers: a module adds its own lines there, including the entries of shared JSON files (`json.files`: `file => dotted.path => value`, a list is appended to the list already there).
 
 `core` is always installed. The others (Filament, 2FA, multilingual, roles and permissions, money, media library, Cloudflare, ...) depend on the answers.
 
@@ -36,7 +38,8 @@ The shared files contain `@kit:<name>` markers (e.g. `// @kit:user-traits`): tha
 | `__KIT_APP_LICENSE__` | License |
 | `__KIT_APP_PORT__` | Local port |
 | `__KIT_APP_ACTUAL_TIMEZONE__` | The users' real timezone |
-| `__KIT_GH_REPOSITORY__` | GitHub repository (`owner/repo`) |
+| `__KIT_GH_REPOSITORY__` | GitHub repository (`owner/repo`); also sets `homepage`, `support` and the npm `repository` |
+| `__KIT_YEAR__`, `__KIT_LICENSE_HOLDER__` | Install year and copyright holder (author name, or the vendor) used in the generated `LICENSE` |
 | `__KIT_GH_TOKEN__`, `__KIT_CONTEXT7_API_KEY__` | Tokens for the AI tooling, in `.env` only |
 | `__KIT_PANEL_ID__`, `__KIT_PANEL_CLASS__` | Id and class prefix of the Filament panel |
 | `__KIT_DEFAULT_LOCALE__`, `__KIT_LOCALE_CASES__` | Default language and the `Locale` enum cases |
