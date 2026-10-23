@@ -290,7 +290,9 @@ final class KitInstaller {
         if ($answers->author_name !== '') {
             $author = array_filter(['name' => $answers->author_name, 'email' => $answers->author_email]);
 
-            $this->mergeJsonEntries('composer.json', ['authors' => [$author]]);
+            $composer = $this->readJson('composer.json');
+            $composer['authors'] = [$author];
+            $this->writeJson('composer.json', $composer);
             $this->run(['npm', 'pkg', 'set', 'author='.$answers->author_name.($answers->author_email === '' ? '' : " <{$answers->author_email}>")]);
         }
     }

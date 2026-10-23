@@ -6,12 +6,13 @@ A containerized, modular starter kit for Laravel. It starts from a clean Laravel
 
 1. Install Laravel normally from this kit.
 2. `composer setup` runs `php artisan starter-kit:install`.
-3. The command asks for the name, slug, vendor, license, port and timezone, then the application type and the optional features.
+3. The command asks for the name, slug, vendor, license, port, timezone, the GitHub repository and the author (both optional), then the application type and the optional features.
 4. Based on the answers it:
    - installs the required Composer packages (`require` and `require-dev`);
    - copies the files of the selected modules;
    - injects code fragments into the shared files (e.g. `User`, `AppServiceProvider`);
    - replaces the `__KIT_*__` placeholders;
+   - writes the `LICENSE` file for the chosen license and sets the license, repository links and author in `composer.json` and `package.json`;
    - updates `.env`, `.env.example`, `composer.json` and `package.json`.
 5. When the installation is done the kit removes itself, and this README is replaced by one that contains only the project name.
 
@@ -37,7 +38,8 @@ The shared files contain `@kit:<name>` markers (e.g. `// @kit:user-traits`): tha
 | `__KIT_APP_LICENSE__` | License |
 | `__KIT_APP_PORT__` | Local port |
 | `__KIT_APP_ACTUAL_TIMEZONE__` | The users' real timezone |
-| `__KIT_GH_REPOSITORY__` | GitHub repository (`owner/repo`) |
+| `__KIT_GH_REPOSITORY__` | GitHub repository (`owner/repo`); also sets `homepage`, `support` and the npm `repository` |
+| `__KIT_YEAR__`, `__KIT_LICENSE_HOLDER__` | Install year and copyright holder (author name, or the vendor) used in the generated `LICENSE` |
 | `__KIT_GH_TOKEN__`, `__KIT_CONTEXT7_API_KEY__` | Tokens for the AI tooling, in `.env` only |
 | `__KIT_PANEL_ID__`, `__KIT_PANEL_CLASS__` | Id and class prefix of the Filament panel |
 | `__KIT_DEFAULT_LOCALE__`, `__KIT_LOCALE_CASES__` | Default language and the `Locale` enum cases |
