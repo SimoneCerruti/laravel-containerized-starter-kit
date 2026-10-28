@@ -45,6 +45,33 @@ PHP);
             ->and(file_get_contents($project.'/config/app.txt'))->toBe('driver=new');
     });
 
+    test('composes SETUP.md from the active modules and their variants when asked', function (): void {
+        $project = createProjectFixture([
+            '.starterkit/core/SETUP.md' => '## Core for __KIT_APP_SLUG__',
+            '.starterkit/socialite/SETUP.md' => '## Social',
+            '.starterkit/socialite/SETUP.google.md' => '### Google',
+            '.starterkit/socialite/SETUP.github.md' => '### GitHub',
+            '.starterkit/backup/SETUP.md' => '## Backup',
+        ]);
+        writeModuleManifest($project, 'socialite', "['variants' => ['google' => [], 'github' => []]]");
+        writeModuleManifest($project, 'backup', '[]');
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api', 'socialite_providers' => ['google'], 'setup_guide' => true]));
+
+        expect(file_get_contents($project.'/SETUP.md'))->toContain('# My App: setup outside the app')
+            ->toContain("## Core for my-app\n\n## Social\n\n### Google\n")
+            ->not->toContain('GitHub')
+            ->not->toContain('## Backup');
+    });
+
+    test('does not write SETUP.md unless asked', function (): void {
+        $project = createProjectFixture(['.starterkit/core/SETUP.md' => '## Core']);
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api']));
+
+        expect($project.'/SETUP.md')->not->toBeFile();
+    });
+
     test('merges the variants of the answers into the module manifest', function (): void {
         $project = createProjectFixture();
         $commands = fakeProcessesRecordingCommands();
@@ -95,14 +122,38 @@ PHP);
             ->and(implode("\n", $commands->getArrayCopy()))->not->toContain('not/installed');
     });
 
-    test('takes the text of a module that is not selected out of the shared files', function (): void {
-        $project = createProjectFixture(['.mcp.json' => "{\"a\": 1,\n\"extra\": 2}"]);
+    test('merges the JSON entries of the modules: a list is appended to the one there, anything else is set', function (): void {
+        $project = createProjectFixture(['.mcp.json' => '{"servers": {"a": 1}, "allow": ["x"]}']);
         fakeProcessesRecordingCommands();
-        writeModuleManifest($project, 'extra', "['when_disabled' => ['replace' => ['.mcp.json' => [\",\\n\\\"extra\\\": 2\" => ''], 'missing.txt' => ['x' => 'y']]]]");
+        writeModuleManifest($project, 'extra', "['json' => ['files' => ['.mcp.json' => ['servers.extra' => ['command' => 'extra'], 'allow' => ['x', 'extra__*'], 'hooks.Submit' => [['type' => 'command']]]]]]");
+        $answers = KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api', 'modules' => ['extra']]);
 
-        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api']));
+        (new KitInstaller($project))->install($answers);
 
-        expect(file_get_contents($project.'/.mcp.json'))->toBe('{"a": 1}');
+        expect(json_decode(file_get_contents($project.'/.mcp.json'), true))->toBe([
+            'servers' => ['a' => 1, 'extra' => ['command' => 'extra']],
+            'allow' => ['x', 'extra__*'],
+            'hooks' => ['Submit' => [['type' => 'command']]],
+        ]);
+    });
+
+    test('keeps the empty JSON objects of a file it merges into', function (): void {
+        $project = createProjectFixture(['.mcp.json' => '{"env": {}, "servers": {}}']);
+        fakeProcessesRecordingCommands();
+        writeModuleManifest($project, 'extra', "['json' => ['files' => ['.mcp.json' => ['servers.extra' => ['command' => 'extra']]]]]");
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api', 'modules' => ['extra']]));
+
+        expect(json_decode(file_get_contents($project.'/.mcp.json'), true))->toBe(['env' => [], 'servers' => ['extra' => ['command' => 'extra']]])
+            ->and(file_get_contents($project.'/.mcp.json'))->toContain('"env": {}');
+    });
+
+    test('reports the placeholders left without a value in SETUP.md', function (): void {
+        $project = createProjectFixture(['.starterkit/core/SETUP.md' => '## Core __KIT_NOT_A_THING__']);
+
+        $unresolved = (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api', 'setup_guide' => true]));
+
+        expect($unresolved)->toBe(['__KIT_NOT_A_THING__']);
     });
 
     test('keeps the files of the modules that are selected', function (): void {
@@ -153,6 +204,7 @@ PHP);
             'composer config keywords laravel',
             'composer config scripts.setup --json ["composer install","@php artisan migrate --force"]',
             'npm pkg set name=my-app private=true',
+            'npm pkg set license=UNLICENSED',
             'composer config extra.thing my-app',
             'npm pkg set scripts.x=y',
             'npm pkg set --json list=["z"]',
@@ -162,6 +214,59 @@ PHP);
             'php artisan vendor:publish --tag=one',
             'vendor/bin/pint --parallel',
         ]);
+    });
+
+    test('sets the repository links and the author when they are given', function (): void {
+        $project = createProjectFixture();
+        $commands = fakeProcessesRecordingCommands();
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api', 'gh_repository' => 'acme/my-app', 'author_name' => 'Jane Doe', 'author_email' => 'jane@acme.test']));
+
+        expect($commands->getArrayCopy())->toContain('composer config homepage https://github.com/acme/my-app')
+            ->toContain('npm pkg set homepage=https://github.com/acme/my-app repository=https://github.com/acme/my-app')
+            ->toContain('npm pkg set author=Jane Doe <jane@acme.test>')
+            ->toContain('npm pkg set license=MIT');
+
+        $composer = json_decode((string) file_get_contents($project.'/composer.json'), true);
+
+        expect($composer['support'])->toBe([
+            'issues' => 'https://github.com/acme/my-app/issues',
+            'source' => 'https://github.com/acme/my-app/tree/main',
+        ])->and($composer['authors'])->toBe([['name' => 'Jane Doe', 'email' => 'jane@acme.test']]);
+    });
+
+    test('leaves the repository links and the authors alone when they are not given', function (): void {
+        $project = createProjectFixture();
+        $commands = fakeProcessesRecordingCommands();
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api']));
+
+        expect(implode("\n", $commands->getArrayCopy()))->not->toContain('homepage')->not->toContain('authors')->not->toContain('author=');
+    });
+
+    test('writes the LICENSE of the chosen license with the year and the holder', function (): void {
+        $this->travelTo(now()->setYear(2031));
+        $project = createProjectFixture([
+            '.starterkit/core/licenses/MIT.txt' => 'MIT (c) __KIT_YEAR__ __KIT_LICENSE_HOLDER__',
+            '.starterkit/core/licenses/proprietary.txt' => 'Proprietary (c) __KIT_YEAR__ __KIT_LICENSE_HOLDER__',
+        ]);
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api', 'vendor' => 'acme']));
+
+        expect(file_get_contents($project.'/LICENSE'))->toBe('MIT (c) 2031 acme');
+
+        $other = createProjectFixture(['.starterkit/core/licenses/proprietary.txt' => 'Proprietary (c) __KIT_YEAR__ __KIT_LICENSE_HOLDER__']);
+        (new KitInstaller($other))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api', 'license' => 'proprietary', 'author_name' => 'Jane Doe']));
+
+        expect(file_get_contents($other.'/LICENSE'))->toBe('Proprietary (c) 2031 Jane Doe');
+    });
+
+    test('does not write a LICENSE when there is no text for the license', function (): void {
+        $project = createProjectFixture();
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api']));
+
+        expect($project.'/LICENSE')->not->toBeFile();
     });
 
     test('saves the answers without the secrets and removes the kit', function (): void {

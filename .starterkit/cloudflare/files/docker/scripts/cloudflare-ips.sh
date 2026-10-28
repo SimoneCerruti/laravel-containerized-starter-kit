@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Writes the nginx `set_real_ip_from` list for Cloudflare so the real client IP is read from
-# CF-Connecting-IP. Runs at container start (best effort) and weekly from cron.
+# CF-Connecting-IP (the header and the Docker ranges are set in nginx.conf and real-ip.conf). Runs at container start (best effort) and weekly from cron.
 
 OUTPUT=/etc/nginx/conf.d/cloudflare-ips.conf
 TMP=$(mktemp)
@@ -20,10 +20,6 @@ fi
   echo "# Auto-generated $(date -Iseconds) - DO NOT EDIT"
   if [ -n "$v4" ]; then echo "$v4" | awk '{print "set_real_ip_from " $1 ";"}'; fi
   if [ -n "$v6" ]; then echo "$v6" | awk '{print "set_real_ip_from " $1 ";"}'; fi
-  echo "# Docker internal networks"
-  echo "set_real_ip_from 172.16.0.0/12;"
-  echo "set_real_ip_from 10.0.0.0/8;"
-  echo "real_ip_header CF-Connecting-IP;"
   echo "real_ip_recursive on;"
 } > "$TMP"
 

@@ -19,6 +19,9 @@ return [
         'database/factories/UserFactory.php' => [
             'factory-states' => "public function withRole(\\App\\Enums\\Role \$role): static {\n    return \$this->afterCreating(fn (\\App\\Models\\User \$user) => \$user->assignRole(\\App\\Models\\Role::findOrCreate(\$role->value)));\n}",
         ],
+        'app/Actions/CreateUser.php' => [
+            'create-user' => '$user->assignRole(\App\Models\Role::findOrCreate(\App\Enums\Role::SUPER_ADMIN->value));',
+        ],
         'tests/Pest.php' => [
             'pest-imports' => "use App\\Enums\\Role;\nuse App\\Models\\User;",
             'pest-helpers' => 'fragments/pest-helpers.php',
@@ -32,11 +35,6 @@ return [
                     'user-panel-access' => '$this->hasAnyRole([Role::ADMIN, Role::SUPER_ADMIN]),',
                 ],
             ],
-        ],
-    ],
-    'when_disabled' => [
-        'remove_files' => [
-            '.ai/rules/testing_permissions.md',
         ],
     ],
 ];

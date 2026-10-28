@@ -15,9 +15,9 @@ return [
         'TRAEFIK_ENTRYPOINT' => 'websecure',
         'TRAEFIK_CERTRESOLVER' => 'cloudflare',
     ],
-    'replace' => [
+    'fragments' => [
         '.dockerignore' => [
-            "/docs\n" => "/docs\n/deploy\n/CHANGELOG.md\n",
+            'dockerignore' => "/deploy\n/CHANGELOG.md",
         ],
     ],
 ];

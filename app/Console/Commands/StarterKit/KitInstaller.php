@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands\StarterKit;
 
 use Closure;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
 use Symfony\Component\Finder\Finder;
@@ -102,6 +103,12 @@ final class KitInstaller {
             }
         }
 
+        $this->writeLicenseFile($replacer, $answers);
+
+        if ($answers->setup_guide) {
+            $unresolved = array_values(array_unique([...$unresolved, ...$this->writeSetupGuide($active, $answers, $replacer)]));
+        }
+
         $this->saveAnswers($answers);
         $this->run('vendor/bin/pint --parallel');
         $this->removeKit();
@@ -194,12 +201,6 @@ final class KitInstaller {
                 $this->deletePath($this->base_path.'/'.$path);
             }
 
-            foreach ($manifest->replace_when_disabled as $file => $replacements) {
-                if (is_file($this->base_path.'/'.$file)) {
-                    $this->updateFile($file, fn (string $contents): string => strtr($contents, $replacements));
-                }
-            }
-
             $composer = $this->readJson('composer.json');
 
             foreach (['require' => [], 'require-dev' => ['--dev']] as $section => $flags) {
@@ -276,6 +277,35 @@ final class KitInstaller {
         $this->run(['composer', 'config', 'keywords', 'laravel']);
         $this->run(['composer', 'config', 'scripts.setup', '--json', json_encode($this->setupScriptWithoutKit(), JSON_THROW_ON_ERROR)]);
         $this->run(['npm', 'pkg', 'set', "name={$answers->app_slug}", 'private=true']);
+        $this->run(['npm', 'pkg', 'set', 'license='.($answers->license === 'proprietary' ? 'UNLICENSED' : $answers->license)]);
+
+        if ($answers->gh_repository !== '') {
+            $url = "https://github.com/{$answers->gh_repository}";
+
+            $this->run(['composer', 'config', 'homepage', $url]);
+            $this->mergeJsonEntries('composer.json', ['support' => ['issues' => "{$url}/issues", 'source' => "{$url}/tree/main"]]);
+            $this->run(['npm', 'pkg', 'set', "homepage={$url}", "repository={$url}"]);
+        }
+
+        if ($answers->author_name !== '') {
+            $author = array_filter(['name' => $answers->author_name, 'email' => $answers->author_email]);
+
+            $composer = $this->readJson('composer.json');
+            $composer['authors'] = [$author];
+            $this->writeJson('composer.json', $composer);
+            $this->run(['npm', 'pkg', 'set', 'author='.$answers->author_name.($answers->author_email === '' ? '' : " <{$answers->author_email}>")]);
+        }
+    }
+
+    /**
+     * Writes `LICENSE` from the text of the chosen license, kept in `.starterkit/core/licenses`.
+     */
+    private function writeLicenseFile(PlaceholderReplacer $replacer, KitAnswers $answers): void {
+        $source = $this->modulePath('core').'/licenses/'.$answers->license.'.txt';
+
+        if (is_file($source)) {
+            file_put_contents($this->base_path.'/LICENSE', $replacer->replace(file_get_contents($source)));
+        }
     }
 
     /**
@@ -301,11 +331,34 @@ final class KitInstaller {
                 : ['composer', 'config', $key, $replacer->replace((string) $value)]);
         }
 
+        foreach ($manifest->json_files as $file => $entries) {
+            $this->mergeJsonEntries($file, $entries);
+        }
+
         foreach ($manifest->npm_config as $key => $value) {
             $this->run(\is_array($value)
                 ? ['npm', 'pkg', 'set', '--json', "{$key}=".json_encode($value, JSON_THROW_ON_ERROR)]
                 : ['npm', 'pkg', 'set', "{$key}=".$replacer->replace((string) $value)]);
         }
+    }
+
+    /**
+     * A list is merged into the list already at the dotted path, anything else is set there.
+     *
+     * @param  array<string, mixed>  $entries  dotted path => value
+     */
+    private function mergeJsonEntries(string $file, array $entries): void {
+        $data = $this->readJson($file);
+
+        foreach ($entries as $path => $value) {
+            $existing = Arr::get($data, $path);
+
+            Arr::set($data, $path, \is_array($existing) && array_is_list($existing) && \is_array($value) && array_is_list($value)
+                ? array_values(array_unique([...$existing, ...$value], SORT_REGULAR))
+                : $value);
+        }
+
+        $this->writeJson($file, $data);
     }
 
     /**
@@ -325,6 +378,37 @@ final class KitInstaller {
         }
 
         $this->run(['composer', 'dump-autoload']);
+    }
+
+    /**
+     * Composes `SETUP.md` from the `SETUP.md` of every active module (and `SETUP.<variant>.md` of its variants):
+     * the steps to do outside the app, kept after the kit is removed.
+     *
+     * @param  list<string>  $active
+     * @return list<string> the placeholders left without a value
+     */
+    private function writeSetupGuide(array $active, KitAnswers $answers, PlaceholderReplacer $replacer): array {
+        $sections = [];
+
+        foreach ($active as $module) {
+            foreach (['SETUP.md', ...array_map(fn (string $variant): string => "SETUP.{$variant}.md", $answers->variants()[$module] ?? [])] as $file) {
+                $path = $this->modulePath($module).'/'.$file;
+
+                if (is_file($path)) {
+                    $sections[] = trim($replacer->replace(file_get_contents($path)));
+                }
+            }
+        }
+
+        if ($sections === []) {
+            return [];
+        }
+
+        $this->say('Writing SETUP.md');
+        $contents = "# {$answers->app_name}: setup outside the app\n\nThe steps that cannot be done by the code itself. Follow the ones of the modules you use.\n\n".implode("\n\n", $sections)."\n";
+        file_put_contents($this->base_path.'/SETUP.md', $contents);
+
+        return $replacer->findUnresolved($contents);
     }
 
     private function saveAnswers(KitAnswers $answers): void {
@@ -362,16 +446,34 @@ final class KitInstaller {
         $existing = array_map(strval(...), (array) ($composer['scripts'][$event] ?? []));
         $composer['scripts'][$event] = array_values(array_unique([...$existing, ...$commands]));
 
-        file_put_contents($this->base_path.'/composer.json', json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n");
+        $this->writeJson('composer.json', $composer);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function writeJson(string $relative_path, array $data): void {
+        file_put_contents($this->base_path.'/'.$relative_path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n");
     }
 
     /**
      * @return array<string, mixed>
      */
     private function readJson(string $relative_path): array {
-        $decoded = json_decode((string) file_get_contents($this->base_path.'/'.$relative_path), true, flags: JSON_THROW_ON_ERROR);
+        $decoded = $this->objectsToArrays(json_decode((string) file_get_contents($this->base_path.'/'.$relative_path), flags: JSON_THROW_ON_ERROR));
 
         return \is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Empty JSON objects stay objects, so writing the file back does not turn `{}` into `[]`.
+     */
+    private function objectsToArrays(mixed $value): mixed {
+        if ($value instanceof \stdClass && (array) $value === []) {
+            return $value;
+        }
+
+        return \is_array($value) || $value instanceof \stdClass ? array_map($this->objectsToArrays(...), (array) $value) : $value;
     }
 
     private function deletePath(string $path): void {

@@ -18,14 +18,7 @@ Set of rules, best practice and guidelines an AI agent must follow when working 
 - An approved plan states the file paths, conventions, helper names, and test seams resolved during planning. Read them from there, do not re-explore or re-verify.
 - To get packages documentation, consult `context7 mcp`.
 - This project has domain-specific skills available in **/skills/**. You MUST activate the relevant skill whenever you work in that domain.
-- Reach for CodeGraph BEFORE grep/find or reading files when you need to understand or locate code
-  — this repo is indexed by it (a `.codegraph/` directory exists at the repo root):
-  - **MCP tool** (when available): `codegraph_explore` answers most code questions in one call — the
-    relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch
-    hops grep can't follow. Name a file or symbol in the query to read its current line-numbered
-    source. If it's listed but deferred, load it by name via tool search.
-  - **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same
-    output.
+<!-- @kit:agents-guidelines -->
 
 ## Delegating to subagents
 

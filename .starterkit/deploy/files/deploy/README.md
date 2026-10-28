@@ -146,11 +146,28 @@ Requirements: Docker with the Compose plugin (tested with Compose 5.x; `config -
 
 The Docker Hub repository (`<namespace>/<app>`) must be created as private before the first deploy.
 
-The `.env` of each environment must contain at least: `APP_NAME`, `APP_ENV`, `APP_KEY`, `APP_URL` (with `https://`, CI calls `APP_URL/up`), `APP_HOST` (the host only, no scheme), `ACTUAL_TIMEZONE`, `DB_CONNECTION=pgsql`, `DB_HOST=db`, `DB_PORT=5432`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`. The pipeline appends `IMAGE_REF` and `APP_VERSION` at the end, so they win over any duplicate. Optional: `TRAEFIK_ENTRYPOINT`, `TRAEFIK_CERTRESOLVER`, `APP_MEMORY_LIMIT` (default `1g`), `APP_WORKERS_AMOUNT`, `PHP_FPM_*` and `PHP_*` (smaller profiles for staging).
+The `.env` of each environment must contain at least: `APP_NAME`, `APP_ENV`, `APP_KEY`, `APP_URL` (with `https://`, CI calls `APP_URL/up`), `APP_HOST` (the host only, no scheme), `ACTUAL_TIMEZONE`, `DB_CONNECTION=pgsql`, `DB_HOST=db`, `DB_PORT=5432`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`. Also set `APP_DEBUG=false`, `LOG_LEVEL` (e.g. `warning`) and the mail settings (`MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`): the default `MAIL_MAILER=log` writes emails (email verification, password reset, notifications) to the log instead of sending them. The pipeline appends `IMAGE_REF` and `APP_VERSION` at the end, so they win over any duplicate. Optional: `TRAEFIK_ENTRYPOINT`, `TRAEFIK_CERTRESOLVER`, `APP_MEMORY_LIMIT` (default `1g`), `APP_WORKERS_AMOUNT`, `PHP_FPM_*` and `PHP_*` (smaller profiles for staging).
 
 The `.env` is never executed as shell: the entrypoint reads only the keys it needs (`APP_ENV`, `APP_URL`, `FASTCGI_HTTPS`, `APP_WORKERS_*`, `PHP_*`) and expands nothing.
 
 Recommended protections: protected `main`, `staging` and `production` branches, with the `pr-checks.yml` checks required.
+
+## First start
+
+A new environment has an empty database and no seeder runs there, so nobody can sign in. After the first successful deploy create the first user (email already verified) on the server, as the `deploy` user:
+
+```bash
+cd /var/www/<app>/<env>/state
+COMPOSE_PROJECT_NAME=<app>-<env> docker compose exec app php artisan users:create
+```
+
+The command asks for first name, last name, email and password (at least 12 characters), or takes `--first-name`, `--last-name` and `--email`. With the roles and permissions module the user is created as `super_admin`. It is a manual step on purpose: the gateway has no verb that runs arbitrary commands in the container.
+
+## Monitoring
+
+- **Uptime**: the pipeline checks `APP_URL/up` only while deploying. For continuous monitoring use an external service that calls it on a schedule and alerts on failure, for example [cron-job.org](https://cron-job.org/en/) (free): create a cron job on `https://<APP_HOST>/up`, every 1–5 minutes, and enable the notification on failure. `/up` answers 200 only when the application and the database respond, so it covers more than "nginx is up". Any other uptime service works the same way.
+- **Errors and performance** (optional `nightwatch` module): the agent runs in the same container, under supervisor. In the `.env` of the environments that must report, set `NIGHTWATCH_ENABLED=true` and `NIGHTWATCH_TOKEN` (one token per environment, from the Nightwatch dashboard). With `NIGHTWATCH_ENABLED=false` the entrypoint does not start the agent. The agent log is `storage/logs/nightwatch-agent.log`.
+- **Backups** (optional `backup` module): with `BACKUP_DISKS=local` the archives stay on the same server volume as the database, so they do not survive losing the server. Use the Google Drive variant (or another remote disk) for an offsite copy, and set `BACKUP_NOTIFICATION_EMAIL` so a failed or stale backup is reported.
 
 ## Operations
 

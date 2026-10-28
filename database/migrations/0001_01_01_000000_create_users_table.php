@@ -19,10 +19,17 @@ return new class extends Migration {
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->rememberToken();
-            $table->foreignUuid('created_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignUuid('last_updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignUuid('created_by')->nullable();
+            $table->foreignUuid('last_updated_by')->nullable();
             // @kit:users-columns
             $table->timestamps();
+        });
+
+        // Self-referencing keys are added once the table exists: inside `create` Laravel emits them
+        // before the primary key, and Postgres rejects a foreign key on a column with no unique constraint.
+        Schema::table('users', function (Blueprint $table) {
+            $table->foreign('created_by')->references('id')->on('users')->nullOnDelete();
+            $table->foreign('last_updated_by')->references('id')->on('users')->nullOnDelete();
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

@@ -17,6 +17,8 @@ final readonly class KitAnswers {
      */
     private const array FILAMENT_PLUGIN_MODULES = ['media-library', 'permission', 'settings', 'tags', 'translatable'];
 
+    public const LICENSES = ['MIT', 'proprietary', 'Apache-2.0', 'GPL-3.0-or-later'];
+
     public const APP_TYPES = ['backoffice', 'site_with_backoffice', 'site', 'api'];
 
     public const PERMISSIONS = ['none', 'shield', 'permission'];
@@ -60,7 +62,11 @@ final readonly class KitAnswers {
         public string $context7_key = '',
         public bool $cloudflare = false,
         public bool $backup_google_drive = false,
+        public bool $setup_guide = false,
+        public string $author_name = '',
+        public string $author_email = '',
     ) {
+        $this->assertOneOf('license', $this->license, self::LICENSES);
         $this->assertOneOf('app_type', $this->app_type, self::APP_TYPES);
         $this->assertOneOf('permissions', $this->permissions, self::PERMISSIONS);
         $this->assertOneOf('two_factor', $this->two_factor, self::TWO_FACTOR);
@@ -162,6 +168,8 @@ final readonly class KitAnswers {
             'KIT_APP_PORT' => (string) $this->port,
             'KIT_APP_ACTUAL_TIMEZONE' => $this->timezone,
             'KIT_GH_REPOSITORY' => $this->gh_repository,
+            'KIT_YEAR' => (string) now()->year,
+            'KIT_LICENSE_HOLDER' => $this->author_name !== '' ? $this->author_name : $this->vendor,
             'KIT_GH_TOKEN' => $this->gh_token,
             'KIT_CONTEXT7_API_KEY' => $this->context7_key,
             'KIT_PANEL_ID' => $this->panel_id,
