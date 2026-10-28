@@ -221,12 +221,12 @@ return [
      */
     'notifications' => [
         'notifications' => [
-            BackupHasFailedNotification::class => ['mail'],
-            UnhealthyBackupWasFoundNotification::class => ['mail'],
-            CleanupHasFailedNotification::class => ['mail'],
-            BackupWasSuccessfulNotification::class => ['mail'],
-            HealthyBackupWasFoundNotification::class => ['mail'],
-            CleanupWasSuccessfulNotification::class => ['mail'],
+            BackupHasFailedNotification::class => filled(env('BACKUP_NOTIFICATION_EMAIL')) ? ['mail'] : [],
+            UnhealthyBackupWasFoundNotification::class => filled(env('BACKUP_NOTIFICATION_EMAIL')) ? ['mail'] : [],
+            CleanupHasFailedNotification::class => filled(env('BACKUP_NOTIFICATION_EMAIL')) ? ['mail'] : [],
+            BackupWasSuccessfulNotification::class => filled(env('BACKUP_NOTIFICATION_EMAIL')) ? ['mail'] : [],
+            HealthyBackupWasFoundNotification::class => filled(env('BACKUP_NOTIFICATION_EMAIL')) ? ['mail'] : [],
+            CleanupWasSuccessfulNotification::class => filled(env('BACKUP_NOTIFICATION_EMAIL')) ? ['mail'] : [],
         ],
 
         /*
@@ -236,7 +236,8 @@ return [
         'notifiable' => Notifiable::class,
 
         'mail' => [
-            'to' => env('BACKUP_NOTIFICATION_EMAIL'),
+            // spatie validates the address even with no channel enabled, so an empty value needs a valid fallback.
+            'to' => env('BACKUP_NOTIFICATION_EMAIL') ?: 'hello@example.com',
 
             'from' => [
                 'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
