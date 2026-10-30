@@ -175,6 +175,23 @@ PHP);
             ->and(file_get_contents($project.'/.env.example'))->toBe("APP_NAME=My App\nAPP_THING=my-app\n");
     });
 
+    test('quotes the env values that contain spaces', function (): void {
+        $project = createProjectFixture(['.env.example' => "APP_NAME=Laravel\nAPP_URL=http://localhost\n"]);
+        writeModuleManifest($project, 'core', "['env' => ['APP_NAME' => '__KIT_APP_NAME__', 'APP_URL' => 'http://localhost:__KIT_APP_PORT__']]");
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'port' => 84, 'app_type' => 'api']));
+
+        expect(file_get_contents($project.'/.env.example'))->toBe("APP_NAME=\"My App\"\nAPP_URL=http://localhost:84\n");
+    });
+
+    test('runs the commands without the env values the installer booted with', function (): void {
+        $project = createProjectFixture();
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api']));
+
+        Process::assertRan(fn ($process): bool => ($process->environment['APP_NAME'] ?? null) === false);
+    });
+
     test('rebuilds the AI rules index from the rule files that are left', function (): void {
         $project = createProjectFixture(['.ai/rules/a.md' => "---\npaths:\n    - app/**\n---\n", '.ai/rules/index.md' => 'stale']);
 

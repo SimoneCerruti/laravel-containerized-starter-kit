@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands\StarterKit;
 
 use Closure;
+use Dotenv\Dotenv;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
@@ -502,13 +503,30 @@ final class KitInstaller {
      * @param  list<string>|string  $command
      */
     private function run(array|string $command): void {
-        $result = Process::path($this->base_path)->timeout(0)->run($command);
+        $result = Process::path($this->base_path)->timeout(0)->env($this->staleEnvironment())->run($command);
 
         if ($result->failed()) {
             $printable = \is_array($command) ? implode(' ', $command) : $command;
 
             throw new RuntimeException("Command failed: {$printable}\n".$result->errorOutput().$result->output());
         }
+    }
+
+    /**
+     * The installer booted with the env file as it was before the placeholders were replaced, and the
+     * processes it starts inherit those values, which win over the rewritten file. Unsetting them
+     * makes the commands read the file again.
+     *
+     * @return array<string, false>
+     */
+    private function staleEnvironment(): array {
+        $path = $this->base_path.'/.env';
+
+        if (! is_file($path)) {
+            return [];
+        }
+
+        return array_map(fn (): bool => false, Dotenv::parse((string) file_get_contents($path)));
     }
 
     private function say(string $message): void {
