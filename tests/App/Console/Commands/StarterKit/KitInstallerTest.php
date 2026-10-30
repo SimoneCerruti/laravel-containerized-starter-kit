@@ -219,7 +219,6 @@ PHP);
             'composer config description My App',
             'composer config license proprietary',
             'composer config keywords laravel',
-            'composer config scripts.setup --json ["composer install","@php artisan migrate --force"]',
             'npm pkg set name=my-app private=true',
             'npm pkg set license=UNLICENSED',
             'composer config extra.thing my-app',
@@ -231,6 +230,11 @@ PHP);
             'php artisan vendor:publish --tag=one',
             'vendor/bin/pint --parallel',
         ]);
+
+        $composer = json_decode((string) file_get_contents($project.'/composer.json'), true);
+
+        expect($composer['scripts']['setup'])->toBe(['composer install', '@php artisan migrate --force'])
+            ->and($composer['extra']['laravel'] ?? [])->not->toHaveKey('installer');
     });
 
     test('sets the repository links and the author when they are given', function (): void {
