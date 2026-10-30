@@ -4,12 +4,10 @@ A containerized, modular starter kit for Laravel. It starts from a clean Laravel
 
 ## How it works
 
-1. Create the project from this kit (it is not on Packagist, so Composer reads it from GitHub):
+1. Create the project from this kit:
 
    ```bash
-   composer create-project \
-       --repository='{"type":"vcs","url":"https://github.com/SimoneCerruti/laravel-containerized-starter-kit"}' \
-       simonecerruti/containerized-starter-kit my-app dev-main --no-install --no-scripts
+   composer create-project simonecerruti/containerized-starter-kit my-app --no-install --no-scripts
    cd my-app
    ```
 
