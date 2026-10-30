@@ -4,8 +4,21 @@ A containerized, modular starter kit for Laravel. It starts from a clean Laravel
 
 ## How it works
 
-1. Install Laravel normally from this kit.
-2. `composer setup` runs `php artisan starter-kit:install`.
+1. Create the project from this kit, with the Laravel installer:
+
+   ```bash
+   laravel new my-app --using=simonecerruti/containerized-starter-kit
+   cd my-app
+   ```
+
+   or with Composer:
+
+   ```bash
+   composer create-project simonecerruti/containerized-starter-kit my-app --no-install --no-scripts
+   cd my-app
+   ```
+
+2. `composer setup` installs the dependencies, creates the env file and the app key, then runs `php artisan starter-kit:install`, migrates and builds the assets.
 3. The command asks for the name, slug, vendor, license, port, timezone, the GitHub repository and the author (both optional), then the application type and the optional features.
 4. Based on the answers it:
    - installs the required Composer packages (`require` and `require-dev`);
