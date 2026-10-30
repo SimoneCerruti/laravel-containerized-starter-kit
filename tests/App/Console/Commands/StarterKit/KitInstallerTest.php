@@ -79,7 +79,7 @@ PHP);
 
         (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api', 'socialite_providers' => ['google']]));
 
-        expect($commands->getArrayCopy())->toContain('composer require base/pkg:^1 google/pkg:^2 --no-interaction --no-scripts');
+        expect($commands->getArrayCopy())->toContain('composer require base/pkg:^1 google/pkg:^2 --no-interaction --no-scripts --with-all-dependencies');
     });
 
     test('resolves placeholders in the path of a patched file', function (): void {
@@ -224,8 +224,8 @@ PHP);
             'composer config extra.thing my-app',
             'npm pkg set scripts.x=y',
             'npm pkg set --json list=["z"]',
-            'composer require vendor/one:^1.0 --no-interaction --no-scripts',
-            'composer require vendor/two:^2.0 --dev --no-interaction --no-scripts',
+            'composer require vendor/one:^1.0 --no-interaction --no-scripts --with-all-dependencies',
+            'composer require vendor/two:^2.0 --dev --no-interaction --no-scripts --with-all-dependencies',
             'composer dump-autoload',
             'php artisan vendor:publish --tag=one',
             'vendor/bin/pint --parallel',

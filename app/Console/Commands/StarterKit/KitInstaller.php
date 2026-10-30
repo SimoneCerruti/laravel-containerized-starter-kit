@@ -370,6 +370,7 @@ final class KitInstaller {
     /**
      * Composer scripts are skipped while requiring: a provider copied by a module may
      * reference a package that is not installed yet, which would break package discovery.
+     * Locked dependencies may move (e.g. guzzle 8 back to 7 for a package that does not allow 8).
      *
      * @param  list<ModuleManifest>  $manifests
      */
@@ -379,7 +380,7 @@ final class KitInstaller {
 
         foreach ([[$require, []], [$require_dev, ['--dev']]] as [$packages, $flags]) {
             if ($packages !== []) {
-                $this->run(['composer', 'require', ...array_map(fn (string $package, string $constraint): string => "{$package}:{$constraint}", array_keys($packages), $packages), ...$flags, '--no-interaction', '--no-scripts']);
+                $this->run(['composer', 'require', ...array_map(fn (string $package, string $constraint): string => "{$package}:{$constraint}", array_keys($packages), $packages), ...$flags, '--no-interaction', '--no-scripts', '--with-all-dependencies']);
             }
         }
 
