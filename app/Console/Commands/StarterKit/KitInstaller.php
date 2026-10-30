@@ -277,6 +277,7 @@ final class KitInstaller {
         $this->run(['composer', 'config', 'license', $answers->license]);
         $this->run(['composer', 'config', 'keywords', 'laravel']);
         $this->run(['composer', 'config', 'scripts.setup', '--json', json_encode($this->setupScriptWithoutKit(), JSON_THROW_ON_ERROR)]);
+        $this->run(['composer', 'config', '--unset', 'extra.laravel.installer']);
         $this->run(['npm', 'pkg', 'set', "name={$answers->app_slug}", 'private=true']);
         $this->run(['npm', 'pkg', 'set', 'license='.($answers->license === 'proprietary' ? 'UNLICENSED' : $answers->license)]);
 

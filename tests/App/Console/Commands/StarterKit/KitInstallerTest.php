@@ -220,6 +220,7 @@ PHP);
             'composer config license proprietary',
             'composer config keywords laravel',
             'composer config scripts.setup --json ["composer install","@php artisan migrate --force"]',
+            'composer config --unset extra.laravel.installer',
             'npm pkg set name=my-app private=true',
             'npm pkg set license=UNLICENSED',
             'composer config extra.thing my-app',

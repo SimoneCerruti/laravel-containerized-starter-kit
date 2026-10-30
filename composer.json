@@ -164,7 +164,12 @@
     },
     "extra": {
         "laravel": {
-            "dont-discover": []
+            "dont-discover": [],
+            "installer": {
+                "post-create-project": [
+                    "@php artisan starter-kit:install"
+                ]
+            }
         }
     },
     "config": {
