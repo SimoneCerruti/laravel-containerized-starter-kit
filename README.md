@@ -4,14 +4,23 @@ A containerized, modular starter kit for Laravel. It starts from a clean Laravel
 
 ## How it works
 
-1. Install Laravel normally from this kit. Pass `--phpunit` to the installer:
+1. Create the project from this kit, with the Laravel installer:
 
-   ```
+   ```bash
    laravel new my-app --using=simonecerruti/containerized-starter-kit --phpunit
+   cd my-app
    ```
 
-   The kit already ships Pest. Despite the name, `--phpunit` only makes the Laravel installer skip its own Pest step, which would otherwise reinstall Pest and rewrite `tests/`.
-2. `laravel new` runs `php artisan starter-kit:install` right after creating the project (the `extra.laravel.installer.post-create-project` hook in `composer.json`, which the kit removes when it is done). With `composer create-project`, or if the command did not run, `composer setup` runs it.
+   The kit already ships Pest. Despite the name, `--phpunit` only makes the Laravel installer skip its own Pest step, which would otherwise reinstall Pest and rewrite `tests/`. The installer runs `php artisan starter-kit:install` right after creating the project (the `extra.laravel.installer.post-create-project` hook in `composer.json`, which the kit removes when it is done), so with the installer step 2 is not needed.
+
+   or with Composer:
+
+   ```bash
+   composer create-project simonecerruti/containerized-starter-kit my-app --no-install --no-scripts
+   cd my-app
+   ```
+
+2. With Composer, `composer setup` installs the dependencies, creates the env file and the app key, then runs `php artisan starter-kit:install`, migrates and builds the assets.
 3. The command asks for the name, slug, vendor, license, port, timezone, the GitHub repository and the author (both optional), then the application type and the optional features.
 4. Based on the answers it:
    - installs the required Composer packages (`require` and `require-dev`);
