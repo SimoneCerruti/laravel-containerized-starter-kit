@@ -4,7 +4,14 @@ A containerized, modular starter kit for Laravel. It starts from a clean Laravel
 
 ## How it works
 
-1. Create the project from this kit:
+1. Create the project from this kit, with the Laravel installer:
+
+   ```bash
+   laravel new my-app --using=simonecerruti/containerized-starter-kit
+   cd my-app
+   ```
+
+   or with Composer:
 
    ```bash
    composer create-project simonecerruti/containerized-starter-kit my-app --no-install --no-scripts
