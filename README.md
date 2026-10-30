@@ -4,7 +4,13 @@ A containerized, modular starter kit for Laravel. It starts from a clean Laravel
 
 ## How it works
 
-1. Install Laravel normally from this kit.
+1. Install Laravel normally from this kit. Pass `--phpunit` to the installer:
+
+   ```
+   laravel new my-app --using=simonecerruti/containerized-starter-kit --phpunit
+   ```
+
+   The kit already ships Pest. Despite the name, `--phpunit` only makes the Laravel installer skip its own Pest step, which would otherwise reinstall Pest, rewrite `tests/` and fail on `.github/workflows/tests.yml` (the workflows are copied by the `core` module later).
 2. `composer setup` runs `php artisan starter-kit:install`.
 3. The command asks for the name, slug, vendor, license, port, timezone, the GitHub repository and the author (both optional), then the application type and the optional features.
 4. Based on the answers it:
