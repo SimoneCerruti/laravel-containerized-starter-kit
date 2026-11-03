@@ -1,5 +1,8 @@
 [unix_http_server]
 file=/tmp/supervisor.sock
+chmod=0700
+username=supervisor
+password=${SUPERVISOR_PASSWORD}
 
 [supervisord]
 logfile=/var/www/html/storage/logs/supervisord.log
@@ -14,6 +17,8 @@ supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface
 
 [supervisorctl]
 serverurl=unix:///tmp/supervisor.sock
+username=supervisor
+password=${SUPERVISOR_PASSWORD}
 
 [include]
 files = /etc/supervisor/conf.d/*.conf

@@ -5,6 +5,10 @@
     "worktree": {
         "baseRef": "head"
     },
+    "statusLine": {
+        "type": "command",
+        "command": "composer statusline"
+    },
     "permissions": {
         "defaultMode": "plan",
         "deny": [

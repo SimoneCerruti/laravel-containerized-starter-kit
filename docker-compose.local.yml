@@ -18,8 +18,7 @@ services:
       - ".:/var/www/html"
       - "~/.ssh:/var/www/.ssh"
       - "claude_home:/var/www/.claude"
-    environment:
-      # @kit:compose-environment
+    environment: # @kit:compose-environment
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -45,7 +44,7 @@ services:
       POSTGRES_USER: "${DB_USERNAME}"
       POSTGRES_PASSWORD: "${DB_PASSWORD}"
     volumes:
-      - pgsql_data:/var/lib/postgresql/data
+      - pgsql_data:/var/lib/postgresql
     ports:
       - "${FORWARD_DB_PORT:-5432}:5432"
     networks:
@@ -65,7 +64,6 @@ services:
       - "${FORWARD_MAILPIT_DASHBOARD_PORT:-8025}:8025"
     networks:
       - __KIT_APP_SLUG__
-
   # @kit:compose-services
 
 networks:
@@ -73,5 +71,4 @@ networks:
     driver: bridge
 volumes:
   pgsql_data:
-  claude_home:
-  # @kit:compose-volumes
+  claude_home: # @kit:compose-volumes

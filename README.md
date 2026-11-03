@@ -7,11 +7,11 @@ A containerized, modular starter kit for Laravel. It starts from a clean Laravel
 1. Create the project from this kit, with the Laravel installer:
 
    ```bash
-   laravel new my-app --using=simonecerruti/containerized-starter-kit --phpunit
+   laravel new my-app --using=simonecerruti/containerized-starter-kit --database=pgsql --phpunit
    cd my-app
    ```
 
-   The kit already ships Pest. Despite the name, `--phpunit` only makes the Laravel installer skip its own Pest step, which would otherwise reinstall Pest and rewrite `tests/`. The installer runs `php artisan starter-kit:install` right after creating the project (the `extra.laravel.installer.post-create-project` hook in `composer.json`, which the kit removes when it is done), so with the installer step 2 is not needed.
+   The kit already ships Pest. Despite the name, `--phpunit` only makes the Laravel installer skip its own Pest step, which would otherwise reinstall Pest and rewrite `tests/`. The installer runs `php artisan starter-kit:install` right after creating the project (the `extra.laravel.installer.post-create-project` hook in `composer.json`, which the kit removes when it is done), so with the installer step 2 is not needed. Keep `--database=pgsql`: without it the installer forces `sqlite` for starter kits and, after the kit has run, rewrites `DB_CONNECTION` and comments out `DB_PASSWORD` in `.env`.
 
    or with Composer:
 
@@ -51,7 +51,8 @@ The shared files contain `@kit:<name>` markers (e.g. `// @kit:user-traits`): tha
 | `__KIT_APP_SLUG__` | Slug (Docker images, database, network) |
 | `__KIT_VENDOR__` | Vendor (Docker image) |
 | `__KIT_APP_LICENSE__` | License |
-| `__KIT_APP_PORT__` | Local port |
+| `__KIT_APP_PORT__` | Local port (`80` or higher) |
+| `__KIT_VITE_PORT__`, `__KIT_FORWARD_DB_PORT__`, `__KIT_FORWARD_MAILPIT_PORT__`, `__KIT_FORWARD_MAILPIT_DASHBOARD_PORT__` | Vite, database and Mailpit ports: their defaults (5173, 5432, 1025, 8025) shifted by `port - 80` |
 | `__KIT_APP_ACTUAL_TIMEZONE__` | The users' real timezone |
 | `__KIT_GH_REPOSITORY__` | GitHub repository (`owner/repo`); also sets `homepage`, `support` and the npm `repository` |
 | `__KIT_YEAR__`, `__KIT_LICENSE_HOLDER__` | Install year and copyright holder (author name, or the vendor) used in the generated `LICENSE` |

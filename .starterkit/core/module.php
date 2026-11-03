@@ -12,6 +12,11 @@ return [
     'env' => [
         'APP_NAME' => '__KIT_APP_NAME__',
         'APP_URL' => 'http://localhost:__KIT_APP_PORT__',
+        'APP_PORT' => '__KIT_APP_PORT__',
+        'VITE_PORT' => '__KIT_VITE_PORT__',
+        'FORWARD_DB_PORT' => '__KIT_FORWARD_DB_PORT__',
+        'FORWARD_MAILPIT_PORT' => '__KIT_FORWARD_MAILPIT_PORT__',
+        'FORWARD_MAILPIT_DASHBOARD_PORT' => '__KIT_FORWARD_MAILPIT_DASHBOARD_PORT__',
         'MAIL_FROM_ADDRESS' => 'test@__KIT_APP_SLUG__.test',
     ],
 ];

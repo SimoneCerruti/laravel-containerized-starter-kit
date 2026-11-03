@@ -120,6 +120,23 @@ describe('placeholders', function (): void {
         ]);
     });
 
+    test('shifts the Vite, database and Mailpit ports by the distance of the local port from 80', function (): void {
+        expect(KitAnswers::fromArray(['app_name' => 'A', 'port' => 84])->placeholders())->toMatchArray([
+            'KIT_APP_PORT' => '84',
+            'KIT_VITE_PORT' => '5177',
+            'KIT_FORWARD_DB_PORT' => '5436',
+            'KIT_FORWARD_MAILPIT_PORT' => '1029',
+            'KIT_FORWARD_MAILPIT_DASHBOARD_PORT' => '8029',
+        ])
+            ->and(KitAnswers::fromArray(['app_name' => 'A'])->placeholders())->toMatchArray([
+                'KIT_APP_PORT' => '80',
+                'KIT_VITE_PORT' => '5173',
+                'KIT_FORWARD_DB_PORT' => '5432',
+                'KIT_FORWARD_MAILPIT_PORT' => '1025',
+                'KIT_FORWARD_MAILPIT_DASHBOARD_PORT' => '8025',
+            ]);
+    });
+
     test('points the social login urls to the site when there is no Filament', function (): void {
         $placeholders = KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'site'])->placeholders();
 
