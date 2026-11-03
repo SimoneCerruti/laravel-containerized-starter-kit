@@ -52,6 +52,8 @@ export REAL_IP_HEADER=${REAL_IP_HEADER:-X-Forwarded-For}
 export APP_WORKERS_AMOUNT=${APP_WORKERS_AMOUNT:-2}
 export APP_WORKERS_MEMORY_LIMIT=${APP_WORKERS_MEMORY_LIMIT:-256M}
 export FASTCGI_HTTPS=${FASTCGI_HTTPS:-$([ "$APP_ENV" = "local" ] && echo off || echo on)}
+# Locally keep the port of the request in HTTP_HOST (host-mapped ports); behind a proxy use the plain host.
+export FASTCGI_HTTP_HOST=$([ "$APP_ENV" = "local" ] && echo '$http_host' || echo '$host')
 export PHP_MEMORY_LIMIT=${PHP_MEMORY_LIMIT:-128M}
 export PHP_MAX_EXECUTION_TIME=${PHP_MAX_EXECUTION_TIME:-30}
 export PHP_POST_MAX_SIZE=${PHP_POST_MAX_SIZE:-16M}
@@ -79,6 +81,16 @@ envsubst < /usr/local/etc/php/conf.d/opcache.ini.template \
 envsubst < /etc/supervisor/conf.d/laravel-worker.conf.template \
          > /etc/supervisor/conf.d/laravel-worker.conf
 
+# supervisord refuses an unauthenticated control socket (CRIT alert): generate a throwaway
+# password at every start. supervisorctl reads it from the same file, so no one needs to know it.
+SUPERVISOR_PASSWORD=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
+export SUPERVISOR_PASSWORD
+envsubst '${SUPERVISOR_PASSWORD}' \
+    < /etc/supervisor/supervisord.conf.template \
+    > /etc/supervisor/supervisord.conf
+chmod 600 /etc/supervisor/supervisord.conf
+unset SUPERVISOR_PASSWORD
+
 ssl_host=$(printf '%s' "${APP_URL:-http://localhost}" | sed -E 's#^[a-z]+://##; s#[:/].*##')
 SSL_DIR=/etc/nginx/ssl
 LETSENCRYPT_LIVE_DIR="/etc/letsencrypt/live/$ssl_host"
@@ -94,7 +106,7 @@ else
     export SSL_CERTIFICATE_KEY="$SSL_DIR/self-signed.key"
 fi
 
-envsubst '${FASTCGI_HTTPS} ${SSL_CERTIFICATE} ${SSL_CERTIFICATE_KEY} ${REAL_IP_HEADER}' \
+envsubst '${FASTCGI_HTTPS} ${FASTCGI_HTTP_HOST} ${SSL_CERTIFICATE} ${SSL_CERTIFICATE_KEY} ${REAL_IP_HEADER}' \
     < /etc/nginx/sites-available/default.template \
     > /etc/nginx/sites-available/default
 

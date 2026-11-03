@@ -92,7 +92,7 @@ final class InstallStarterKitCommand extends Command {
             'app_slug' => $app_slug,
             'vendor' => text('Vendor (Docker image, composer)', default: $app_slug, required: true),
             'license' => select('License', KitAnswers::LICENSES, default: 'MIT'),
-            'port' => (int) text('Local port', default: '8080', required: true, validate: fn (string $value): ?string => ctype_digit($value) ? null : 'The port must be a number.'),
+            'port' => (int) text('Local port', default: '80', hint: 'The Vite, database and Mailpit ports are shifted by the same amount (port - 80).', required: true, validate: fn (string $value): ?string => ctype_digit($value) && (int) $value >= 80 ? null : 'The port must be a number, 80 or higher.'),
             'timezone' => text("Users' real timezone", default: 'Europe/Rome', required: true),
             'gh_repository' => text('GitHub repository (owner/repo, optional)'),
             'author_name' => $author_name = text('Author name (optional)'),

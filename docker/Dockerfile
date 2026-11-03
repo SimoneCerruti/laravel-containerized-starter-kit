@@ -86,7 +86,7 @@ COPY ./docker/configs/php-fpm-www.conf /usr/local/etc/php-fpm.d/www.conf.templat
 COPY ./docker/configs/php.ini $PHP_INI_DIR/php.ini.template
 
 # Setup supervisord configs
-COPY ./docker/configs/supervisord.conf /etc/supervisor/supervisord.conf
+COPY ./docker/configs/supervisord.conf.template /etc/supervisor/supervisord.conf.template
 
 # Setup cron supervisor (for Laravel scheduler)
 COPY ./docker/configs/crontab /etc/crontab

@@ -28,11 +28,11 @@ Thumbs.db
 .handoffs
 /.worktrees
 /.claude/worktrees
-/.claude/ccstatusline/
 # Symlink to .ai/hooks, created by `composer ai:update` (a dist archive would not keep it).
 /.claude/hooks
 docs/plans/**
 /.claude/settings.local.json
 CLAUDE.local.md
 .env.testing
+/tests/Browser/Screenshots/
 # @kit:gitignore

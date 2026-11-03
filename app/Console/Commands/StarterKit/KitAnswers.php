@@ -36,7 +36,7 @@ final readonly class KitAnswers {
         public string $app_slug,
         public string $vendor = 'simonecerruti',
         public string $license = 'MIT',
-        public int $port = 8080,
+        public int $port = 80,
         public string $timezone = 'Europe/Rome',
         public string $gh_repository = '',
         public string $app_type = 'site_with_backoffice',
@@ -166,6 +166,10 @@ final readonly class KitAnswers {
             'KIT_VENDOR' => $this->vendor,
             'KIT_APP_LICENSE' => $this->license,
             'KIT_APP_PORT' => (string) $this->port,
+            'KIT_VITE_PORT' => (string) (5173 + $this->portOffset()),
+            'KIT_FORWARD_DB_PORT' => (string) (5432 + $this->portOffset()),
+            'KIT_FORWARD_MAILPIT_PORT' => (string) (1025 + $this->portOffset()),
+            'KIT_FORWARD_MAILPIT_DASHBOARD_PORT' => (string) (8025 + $this->portOffset()),
             'KIT_APP_ACTUAL_TIMEZONE' => $this->timezone,
             'KIT_GH_REPOSITORY' => $this->gh_repository,
             'KIT_YEAR' => (string) now()->year,
@@ -184,6 +188,13 @@ final readonly class KitAnswers {
             'KIT_SOCIALITE_LOGIN_URL' => $this->hasFilament() ? $home_url.'/login' : '/login',
             'KIT_SOCIALITE_HOME_URL' => $home_url,
         ];
+    }
+
+    /**
+     * How far the local port is from the default HTTP port: every other forwarded port is shifted by it.
+     */
+    private function portOffset(): int {
+        return $this->port - 80;
     }
 
     /**
