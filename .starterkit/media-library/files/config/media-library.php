@@ -18,7 +18,6 @@ use Spatie\MediaLibrary\Conversions\ImageGenerators\Video;
 use Spatie\MediaLibrary\Conversions\ImageGenerators\Webp;
 use Spatie\MediaLibrary\Conversions\Jobs\PerformConversionsJob;
 use Spatie\MediaLibrary\Downloaders\DefaultDownloader;
-use Spatie\MediaLibrary\MediaCollections\FileAdder;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\MediaLibrary\MediaCollections\Models\Observers\MediaObserver;
 use Spatie\MediaLibrary\ResponsiveImages\Jobs\GenerateResponsiveImagesJob;
@@ -59,11 +58,12 @@ return [
      * `malicious.php.jpg` is blocked as well. Matching is case-insensitive
      * and a leading dot is optional.
      *
-     * The default list lives on the `FileAdder` class so the shipped config
-     * and the in-code fallback (used when the config is cached without the
-     * key) cannot drift. Override here to extend or shrink it.
+     * Leave `null` to use the default list of the `FileAdder` class (the package falls back
+     * to it), so it never drifts from upstream. Set an array here to extend or shrink it.
+     * It is not referenced through `FileAdder::$defaultDisallowedExtensions` because the
+     * arch test bans camelCase variables.
      */
-    'disallowed_extensions' => FileAdder::$defaultDisallowedExtensions,
+    'disallowed_extensions' => null,
 
     /*
      * When this is set to an array of extensions, only uploads whose final
