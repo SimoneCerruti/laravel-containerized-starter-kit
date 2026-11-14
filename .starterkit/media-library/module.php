@@ -16,6 +16,7 @@ return [
     'fragments' => [
         'tests/ArchTest.php' => [
             'arch-strict-ignores' => "'App\\Support\\MediaPathGenerator',",
+            'arch-vendor-migrations' => "'create_media_table',",
         ],
     ],
     'variants' => [

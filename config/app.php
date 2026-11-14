@@ -76,7 +76,7 @@ return [
     | the actual timezone the end-users (admins/the customer) live in.
     | This one is used to parse dates, run the scheduler, etc.
     */
-    'actual_timezone' => env('ACTUAL_TIMEZONE'),
+    'actual_timezone' => env('ACTUAL_TIMEZONE', 'UTC'),
 
     /*
     | Release running in this environment (tag or short commit SHA), written to the .env by the
