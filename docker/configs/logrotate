@@ -6,4 +6,6 @@
     notifempty
     copytruncate
     su www-data www-data
+    olddir /var/www/html/storage/logs/old
+    createolddir 0755 www-data www-data
 }

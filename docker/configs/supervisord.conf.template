@@ -6,8 +6,7 @@ password=${SUPERVISOR_PASSWORD}
 
 [supervisord]
 logfile=/var/www/html/storage/logs/supervisord.log
-logfile_maxbytes=50MB
-logfile_backups=10
+logfile_maxbytes=0
 loglevel=info
 pidfile=/tmp/supervisord.pid
 user=root
