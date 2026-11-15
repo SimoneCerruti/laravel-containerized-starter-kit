@@ -98,7 +98,15 @@ jobs:
           fi
           echo "gateway on the server: ${installed:-unknown}, required: $required"
 
-          if [[ -z "$installed" ||"${installed%%.*}" != "${required%%.*}" || "$(printf '%s\n%s\n' "$required" "$installed" | sort -V | head -n 1)" != "$required" ]]; then
+          # the server must run the reviewed script of that release, not another copy
+          expected_hash=$(tr -d '[:space:]' < deploy/gateway.sha256)
+          installed_hash=$(ssh deploy-target version 2>/dev/null | awk '/^deploy-gateway /{print $6}' || true)
+          if [[ ! "$expected_hash" =~ ^[0-9a-f]{64}$ || "$installed_hash" != "$expected_hash" ]]; then
+            echo "::error::the gateway on the server is not the pinned release (deploy/gateway.sha256): reinstall v$required of laravel-deploy-gateway"
+            exit 1
+          fi
+
+          if [[ -z "$installed" || "${installed%%.*}" != "${required%%.*}" || "$(printf '%s\n%s\n' "$required" "$installed" | sort -V | head -n 1)" != "$required" ]]; then
             echo "::error::the gateway on the server ($installed) does not satisfy $required: install the release v$required of laravel-deploy-gateway"
             exit 1
           fi

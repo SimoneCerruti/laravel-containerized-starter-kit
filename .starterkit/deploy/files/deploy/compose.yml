@@ -67,6 +67,8 @@ services:
       - pgsql_data:/var/lib/postgresql
     networks:
       - backend
+    # the policy requires a memory limit on every service
+    mem_limit: ${DB_MEMORY_LIMIT:-1g}
     security_opt:
       - no-new-privileges:true
     healthcheck:

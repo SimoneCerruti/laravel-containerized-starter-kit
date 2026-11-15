@@ -18,7 +18,7 @@ The deploy (`.github/workflows/_deploy.yml`) is a sequence of gateway verbs, one
 
 | Step | Verb | What it does |
 | --- | --- | --- |
-| Gateway version | `version` | Stops the deploy, before touching anything, if the gateway on the server is older than `deploy/gateway.version` or has another major version. |
+| Gateway version | `version` | Stops the deploy, before touching anything, if the gateway on the server is older than `deploy/gateway.version`, has another major version, or its script does not have the SHA-256 in `deploy/gateway.sha256`. |
 | Upload | `put-compose`, `put-env` | Uploads `deploy/compose.yml` and the `.env` (`DOTENV_*` secret + `IMAGE_REF` + `APP_VERSION`). Not active yet. |
 | Activate | `activate` | Validates compose and `.env`, applies the security policy and makes the **normalized** compose the active one. |
 | Pull | `pull` | Pulls the images with the read-only Docker Hub token, passed over stdin. |
@@ -40,7 +40,7 @@ Migrations run **before** the rollout and never in the entrypoint: if a migratio
 | Server access | `deploy` user with a *forced command*, one key per app + environment. | `deploy` is in the `docker` group, i.e. root on the host: the gateway is the real security boundary. |
 | Validation | `activate` runs `docker compose config` and applies a `jq` policy; the **normalized** file becomes the active one. | What runs is what was validated, not what was uploaded. Includes, extends and variables are already resolved. |
 | Gateway | A separate repository, installed on the server once and pinned per project by `deploy/gateway.version`. | The gateway is server infrastructure and the security boundary: one copy, with its own tests and releases, instead of one drifting copy per app. |
-| Policy in CI | `pr-checks.yml` runs the gateway's offline `--check-compose` on `deploy/compose.yml`, at the pinned version. | A compose file the server would refuse fails the pull request, not the deploy. |
+| Policy in CI | `pr-checks.yml` runs the gateway's offline `--check-compose` on `deploy/compose.yml`, at the pinned version, after checking that the cloned `gateway.sh` has the SHA-256 in `deploy/gateway.sha256` (a release tag can be moved, the hash cannot). When you upgrade the gateway, change `deploy/gateway.version` and `deploy/gateway.sha256` together, in a reviewed PR. | A compose file the server would refuse fails the pull request, not the deploy. |
 | Per-app configuration | `/var/www/<app>/<env>/deploy.conf`, owned by root: `ALLOWED_HOSTS`, `ALLOWED_ENTRYPOINTS`, `ALLOWED_CERTRESOLVERS`, … | It sits next to the app, but neither `deploy` nor the containers can change it. |
 | Container | A single one (supervisord: nginx, php-fpm, worker, cron). | Project choice: no separate services for workers and scheduler. |
 | Workers during rollout | Stop workers and cron in the old container → `docker rollout` → if it fails, restart them in the old one. | docker-rollout keeps two containers side by side: without the stop every job and cron would run twice. 30–60 s without workers is the better trade. |
@@ -86,10 +86,10 @@ The server needs Docker with the Compose plugin, `jq`, `flock`, `curl` and Traef
 3. **Register the app + environment** on the server (an app with production only uses `production` too):
 
    ```bash
-   sudo ./add-app.sh <app> <env> "app.example.com" ./deploy_key.pub
+   sudo ./add-app.sh <app> <env> "app.example.com" ./deploy_key.pub ALLOWED_IMAGE_REPOS="docker.io/<DOCKERHUB_NAMESPACE>/<app> postgres"
    ```
 
-   It creates `/var/www/<app>/<env>/deploy.conf` (root-owned), `state/` and the `authorized_keys` line with the forced command. `<env>` has no hyphens. The hosts must list every host the router may serve (including `www.` if you add it). For another certresolver, entrypoint, or a different migrate command, pass `ALLOWED_CERTRESOLVERS=…`, `ALLOWED_ENTRYPOINTS=…`, `MIGRATE_COMMAND=…` (see the gateway README).
+   It creates `/var/www/<app>/<env>/deploy.conf` (root-owned), `state/` and the `authorized_keys` line with the forced command. `<env>` has no hyphens. The hosts must list every host the router may serve (including `www.` if you add it). `ALLOWED_IMAGE_REPOS` is required and lists every image repository the app may run: the app image and `postgres`, plus any service you add to the compose file. Every service also needs a `mem_limit` (at most `MAX_SERVICE_MEMORY_MB`, 4096 by default) and `security_opt: [no-new-privileges:true]`. For another certresolver, entrypoint, or a different migrate command, pass `ALLOWED_CERTRESOLVERS=…`, `ALLOWED_ENTRYPOINTS=…`, `MIGRATE_COMMAND=…` (see the gateway README).
 
 4. **Known hosts**: `ssh-keyscan -t ed25519 <host>` (check the fingerprint over a trusted channel). The line goes into the `DEPLOY_KNOWN_HOSTS` secret.
 

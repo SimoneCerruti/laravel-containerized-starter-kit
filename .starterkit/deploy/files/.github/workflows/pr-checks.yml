@@ -71,6 +71,20 @@ jobs:
           path: .gateway
           persist-credentials: false
 
+      # A release tag can be moved: the script that was cloned must be the reviewed one
+      - name: Verify the gateway release
+        run: |
+          expected=$(tr -d '[:space:]' < deploy/gateway.sha256)
+          if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::deploy/gateway.sha256 must be the SHA-256 of gateway.sh at the pinned release"
+            exit 1
+          fi
+          actual=$(sha256sum .gateway/gateway.sh | cut -d' ' -f1)
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::gateway.sh of the release differs from deploy/gateway.sha256 ($actual)"
+            exit 1
+          fi
+
       # Dummy values for the variables compose.yml requires: the real ones live in the environments' secrets
       - name: Check deploy/compose.yml
         run: |
@@ -83,5 +97,6 @@ jobs:
           } > "$RUNNER_TEMP/policy.env"
           for environment in staging production; do
             .gateway/gateway.sh --check-compose --compose deploy/compose.yml --app __KIT_APP_SLUG__ --env "$environment" \
-              --hosts app.example.com --env-file "$RUNNER_TEMP/policy.env"
+              --hosts app.example.com --images "docker.io/example/__KIT_APP_SLUG__ postgres" \
+              --env-file "$RUNNER_TEMP/policy.env"
           done
