@@ -60,7 +60,7 @@ Migrations run **before** the rollout and never in the entrypoint: if a migratio
 
 `activate` rejects the compose file if it contains anything outside the allowed list; the full policy is in the README of the gateway repository. In short: the keys of a service are an *allow-list* (no `privileged`, `cap_add`, `ports`, `network_mode`, `build`, `container_name`, …); the **only** bind mount is `./.env`, read-only (a wider rule would let a container plant a symlink in the state directory and have the next deploy mount any host path); named volumes and networks must be `<app>-<env>_…` and cannot use `driver_opts`; the only external network is `traefik`; Traefik routers, services and middlewares must be named `<app>-<env>` or start with `<app>-<env>--`, rules must use `Host(…)` with the hosts of `ALLOWED_HOSTS`, entrypoints and certresolvers must be in the allow-lists of `deploy.conf`; `include` and `extends` are rejected.
 
-There is no image allow-list: whoever can write to the repo can already make the image they build run any code.
+Images are an allow-list too: every `image:` of the compose file and the repository of `IMAGE_REF` must be in `ALLOWED_IMAGE_REPOS` of the app's `deploy.conf`, and every service needs a `mem_limit` and `security_opt: [no-new-privileges:true]`. A tag or digest inside an allowed repository is whatever the pipeline pushed there, so keep push rights to the registry in CI only.
 
 The same policy runs on every pull request (`pr-checks.yml`, job `compose-policy`), at the version in `deploy/gateway.version`. If you add variables with `${VAR:?}` to `deploy/compose.yml`, add a dummy value for them in that job.
 
@@ -72,10 +72,11 @@ The server needs Docker with the Compose plugin, `jq`, `flock`, `curl` and Traef
 
    ```bash
    git checkout v<version>
+   sha256sum gateway.sh   # must equal deploy/gateway.sha256 of the project
    sudo ./install.sh
    ```
 
-   It installs docker-rollout (pinned and verified), creates the `deploy` user (in the `docker` group, which is root on the host: that is why the gateway is the security boundary) and installs `/usr/local/bin/deploy-gateway`. To upgrade, check out the newer tag and run it again; then raise `deploy/gateway.version` in the projects that should require it.
+   It installs docker-rollout (pinned and verified), creates the `deploy` user (in the `docker` group, which is root on the host: that is why the gateway is the security boundary) and installs `/usr/local/bin/deploy-gateway`. To upgrade, check out the newer tag and run it again; then change `deploy/gateway.version` and `deploy/gateway.sha256` together, in a reviewed PR, in the projects that should require it.
 
 2. **SSH key**, one per app + environment. Generate it locally:
 
