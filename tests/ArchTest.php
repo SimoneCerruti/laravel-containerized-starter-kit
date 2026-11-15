@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 use function Safe\glob;
 
@@ -32,6 +33,7 @@ arch('strict')
     ->ignoring([
         'App\\Macros',
         'App\\Models',
+        'App\\Exceptions',
         Controller::class,
         // @kit:arch-strict-ignores
     ]);
@@ -58,6 +60,52 @@ arch('policies are final')
     ->expect('App\Policies')
     ->classes()
     ->toBeFinal();
+
+arch('exceptions are not final')
+    ->expect('App\Exceptions')
+    ->classes()
+    ->not->toBeFinal();
+
+test('every exception extends the root exception of its own domain and no other root', function (): void {
+    $exception_classes = collect(glob(app_path('Exceptions/*.php')))
+        ->map(fn (string $file): string => 'App\\Exceptions\\'.pathinfo($file, PATHINFO_FILENAME))
+        ->filter(fn (string $class): bool => class_exists($class))
+        ->values();
+
+    $root_classes = $exception_classes
+        ->reject(fn (string $class): bool => str_starts_with((string) get_parent_class($class), 'App\\Exceptions\\'))
+        ->values();
+
+    $domain_of = fn (string $class): string => Str::beforeLast(class_basename($class), 'Exception');
+
+    $violations = $exception_classes
+        ->flatMap(function (string $class) use ($root_classes, $domain_of): array {
+            if (! str_ends_with($class, 'Exception')) {
+                return ["{$class} must be named <Domain>Exception or <Domain><Case>Exception."];
+            }
+
+            if ($root_classes->contains($class)) {
+                return is_subclass_of($class, RuntimeException::class) ? [] : ["{$class} is a root exception and must extend RuntimeException."];
+            }
+
+            $domain_root = $root_classes
+                ->filter(fn (string $root): bool => str_starts_with(class_basename($class), $domain_of($root)))
+                ->sortByDesc(fn (string $root): int => mb_strlen($domain_of($root)))
+                ->first();
+
+            if ($domain_root === null) {
+                return ["{$class} is not named after the domain of any root exception."];
+            }
+
+            $ancestor_roots = $root_classes->filter(fn (string $root): bool => is_subclass_of($class, $root))->values()->all();
+
+            return $ancestor_roots === [$domain_root] ? [] : ["{$class} must extend {$domain_root} and no other root exception."];
+        })
+        ->values()
+        ->all();
+
+    expect($violations)->toBeEmpty();
+});
 
 arch('models log every change')
     ->expect('App\Models')

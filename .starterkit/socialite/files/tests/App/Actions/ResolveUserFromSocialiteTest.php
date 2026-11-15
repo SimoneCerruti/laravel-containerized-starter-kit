@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\ResolveUserFromSocialite;
-use App\Exceptions\SocialLoginRejected;
+use App\Exceptions\SocialLoginException;
 use App\Models\SocialAccount;
 use App\Models\User;
 use Laravel\Socialite\Two\User as SocialiteUser;
@@ -70,7 +70,7 @@ describe('existing user', function (): void {
         User::factory()->unverified()->create(['email' => 'jane@example.com']);
 
         ResolveUserFromSocialite::run('google', socialiteUser());
-    })->throws(SocialLoginRejected::class);
+    })->throws(SocialLoginException::class);
 });
 
 describe('registration', function (): void {
@@ -94,7 +94,7 @@ describe('registration', function (): void {
     it('creates nothing when registration is disabled', function (): void {
         config()->set('socialite.registration', false);
 
-        expect(fn () => ResolveUserFromSocialite::run('google', socialiteUser()))->toThrow(SocialLoginRejected::class)
+        expect(fn () => ResolveUserFromSocialite::run('google', socialiteUser()))->toThrow(SocialLoginException::class)
             ->and(User::query()->count())->toBe(0)
             ->and(SocialAccount::query()->count())->toBe(0);
     });
@@ -103,11 +103,11 @@ describe('registration', function (): void {
 describe('email verification', function (): void {
     it('refuses an identity without an email', function (): void {
         ResolveUserFromSocialite::run('google', socialiteUser(email: null));
-    })->throws(SocialLoginRejected::class);
+    })->throws(SocialLoginException::class);
 
     it('refuses an email the provider did not verify', function (): void {
         ResolveUserFromSocialite::run('google', socialiteUser(raw: ['email_verified' => false]));
-    })->throws(SocialLoginRejected::class);
+    })->throws(SocialLoginException::class);
 
     it('accepts the Apple string flag', function (): void {
         $user = ResolveUserFromSocialite::run('apple', socialiteUser(raw: ['email_verified' => 'true']));
@@ -122,7 +122,7 @@ describe('email verification', function (): void {
     });
 
     it('refuses an unknown provider unless it is trusted', function (): void {
-        expect(fn () => ResolveUserFromSocialite::run('microsoft', socialiteUser(raw: [])))->toThrow(SocialLoginRejected::class);
+        expect(fn () => ResolveUserFromSocialite::run('microsoft', socialiteUser(raw: [])))->toThrow(SocialLoginException::class);
 
         config()->set('socialite.trusted_providers', ['microsoft']);
 
