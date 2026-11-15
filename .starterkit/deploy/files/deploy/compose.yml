@@ -1,6 +1,7 @@
 # Compose file for staging and production on the shared VPS. Same file everywhere: the differences
-# live in the .env of each environment. It is validated by deploy/gateway.sh before it becomes active,
-# so only what the policy allows can be used here (see deploy/README.md).
+# live in the .env of each environment. It is validated by the deploy gateway of the server before it becomes
+# active (and by the PR checks, with the same policy), so only what the policy allows can be used
+# here (see deploy/README.md and the gateway repository).
 #
 # Variables used here come from the .env of the environment:
 #   IMAGE_REF            repo@sha256:..., written by the pipeline

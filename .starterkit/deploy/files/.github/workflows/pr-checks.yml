@@ -37,3 +37,37 @@ jobs:
           # a hotfix without an entry would fail its release after the merge, leaving production ahead with no tag
           [[ "$BASE_REF" == production ]] && flags+=(--require-entry)
           php .github/scripts/changelog.php check "$RUNNER_TEMP/base.md" CHANGELOG.md "${flags[@]}"
+
+  # The server refuses a compose file that breaks the gateway policy, but only at deploy time:
+  # here the same policy, at the version the project is pinned to (deploy/gateway.version), runs on the PR
+  compose-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Gateway version
+        id: gateway
+        run: echo "version=$(tr -d '[:space:]' < deploy/gateway.version)" >> "$GITHUB_OUTPUT"
+
+      # The gateway repository can be private: GATEWAY_REPO_TOKEN (read access to it) is then needed
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ vars.GATEWAY_REPOSITORY || 'SimoneCerruti/laravel-deploy-gateway' }}
+          ref: v${{ steps.gateway.outputs.version }}
+          token: ${{ secrets.GATEWAY_REPO_TOKEN || github.token }}
+          path: .gateway
+
+      # Dummy values for the variables compose.yml requires: the real ones live in the environments' secrets
+      - name: Check deploy/compose.yml
+        run: |
+          {
+            echo "IMAGE_REF=docker.io/example/__KIT_APP_SLUG__@sha256:$(printf '0%.0s' {1..64})"
+            echo "APP_HOST=app.example.com"
+            echo "DB_DATABASE=app"
+            echo "DB_USERNAME=app"
+            echo "DB_PASSWORD=secret"
+          } > "$RUNNER_TEMP/policy.env"
+          for environment in staging production; do
+            .gateway/gateway.sh --check-compose --compose deploy/compose.yml --app __KIT_APP_SLUG__ --env "$environment" \
+              --hosts app.example.com --env-file "$RUNNER_TEMP/policy.env"
+          done

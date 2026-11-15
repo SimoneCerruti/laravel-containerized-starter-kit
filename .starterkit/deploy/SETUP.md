@@ -2,9 +2,10 @@
 
 The code is built in CI and rolled out to the shared VPS (Traefik + Docker Compose) through GitHub Actions. The full guide is `deploy/README.md`; the steps outside the app are:
 
-1. **Server (once)**: create the `deploy` user with the forced command `deploy/gateway.sh`, one SSH key per app and environment, and the directory `/var/www/__KIT_APP_SLUG__/<env>`. See *Server setup* in `deploy/README.md`.
-2. **GitHub**: add the repository secrets with the `_STAGING` / `_PRODUCTION` suffixes (`DOTENV_*`, `DEPLOY_*`, Docker Hub tokens, `DEPLOY_KNOWN_HOSTS`). See *GitHub setup* in `deploy/README.md`.
-3. **DNS**: point `APP_HOST` of each environment to the server.
-4. **`.env` of each environment**: set `APP_ENV=production`, `APP_DEBUG=false`, `LOG_LEVEL`, `MAIL_*` and the database credentials.
-5. **First start**: create the first user with `docker compose exec app php artisan users:create` (see *First start*).
-6. **Uptime**: monitor `https://<APP_HOST>/up` from outside, for example with [cron-job.org](https://cron-job.org/en/).
+1. **Server (once per server)**: install the deploy gateway from the [laravel-deploy-gateway](https://github.com/SimoneCerruti/laravel-deploy-gateway) repository at the version in `deploy/gateway.version` (`git checkout v<version>`, `sudo ./install.sh`). Skip it if another app already installed that version.
+2. **Server (per app and environment)**: generate a deploy key and register it with `sudo ./add-app.sh __KIT_APP_SLUG__ <env> "<APP_HOST>" <deploy_key.pub>`. See *Server setup* in `deploy/README.md`.
+3. **GitHub**: add the repository secrets with the `_STAGING` / `_PRODUCTION` suffixes (`DOTENV_*`, `DEPLOY_*`, Docker Hub tokens, `DEPLOY_KNOWN_HOSTS`), and `GATEWAY_REPO_TOKEN` if the gateway repository is private. See *GitHub setup* in `deploy/README.md`.
+4. **DNS**: point `APP_HOST` of each environment to the server.
+5. **`.env` of each environment**: set `APP_ENV=production`, `APP_DEBUG=false`, `LOG_LEVEL`, `MAIL_*` and the database credentials.
+6. **First start**: create the first user with `docker compose exec app php artisan users:create` (see *First start*).
+7. **Uptime**: monitor `https://<APP_HOST>/up` from outside, for example with [cron-job.org](https://cron-job.org/en/).

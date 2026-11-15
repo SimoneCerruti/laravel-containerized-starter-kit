@@ -1,4 +1,5 @@
-# Shared deploy workflow: talks to the server only through deploy/gateway.sh (SSH forced command).
+# Shared deploy workflow: talks to the server only through the deploy gateway (SSH forced command),
+# installed on the server from the laravel-deploy-gateway repository at the version in deploy/gateway.version.
 # Called by deploy-staging.yml and deploy-production.yml with the secrets of the right environment.
 # The steps are the gateway verbs, so every phase shows up on its own in the log.
 
@@ -84,6 +85,19 @@ jobs:
             echo "  ServerAliveInterval 30"
             echo "  ServerAliveCountMax 40"
           } > "$HOME/.ssh/config"
+
+      # The gateway on the server is installed by hand and upgraded on its own: stop before touching
+      # anything if it is older than the one this project is pinned to, or has another major version
+      - name: Check the gateway version
+        run: |
+          required=$(tr -d '[:space:]' < deploy/gateway.version)
+          installed=$(ssh deploy-target version | awk '{print $2}')
+          echo "gateway on the server: ${installed:-unknown}, required: $required"
+
+          if [[ -z "$installed" || "${installed%%.*}" != "${required%%.*}" || "$(printf '%s\n%s\n' "$required" "$installed" | sort -V | head -n 1)" != "$required" ]]; then
+            echo "::error::the gateway on the server ($installed) does not satisfy $required: install the release v$required of laravel-deploy-gateway"
+            exit 1
+          fi
 
       # The final .env: the secret, then the values the pipeline owns (they come last, so they win)
       - name: Build .env
