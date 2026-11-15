@@ -9,3 +9,4 @@ paths:
     - `domain` is the plural, kebab-case form of the module (eg: analytics) or the full model name the command operates on — never a shortened or generic stand-in.
     - `verb-object` is a kebab-case action descriptor.
 - Declare command metadata via PHP attributes whenever one exists for it, instead of the equivalent property: `#[Signature('...')]` instead of `protected $signature`, and the same for `#[Description('...')]`, `#[Help('...')]`, `#[Usage('...')]`, `#[Aliases([...])]`, `#[Hidden]`, etc.
+- Keep commands thin: a command only handles its own I/O — parsing arguments and options, prompting, printing output, and returning the exit code. Put the executive logic in an Action (see `.ai/rules/actions.md`) and call it from `handle()`, passing the parsed values as explicit, typed parameters.
