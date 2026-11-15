@@ -7,7 +7,7 @@ namespace App\Exceptions;
 use Illuminate\Support\Facades\Lang;
 use RuntimeException;
 
-final class SocialLoginRejected extends RuntimeException {
+class SocialLoginException extends RuntimeException {
     public static function missingEmail(): self {
         return new self(Lang::string('The provider did not share an email address.'));
     }

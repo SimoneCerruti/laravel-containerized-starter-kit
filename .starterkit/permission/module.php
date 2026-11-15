@@ -5,7 +5,8 @@ declare(strict_types=1);
 /*
  * Roles and permissions on spatie/laravel-permission with UUID models. The Pest helpers assume
  * the module's `Role` enum (USER, ADMIN, SUPER_ADMIN) and the `User::factory()->withRole()` state,
- * both shipped by this module. With the panel, only admins reach it (`filament` variant).
+ * both shipped by this module. The module also ships a `UserPolicy` and the arch test that every
+ * model except Role and Permission has a Policy. With the panel, only admins reach it (`filament` variant).
  */
 return [
     'require' => [
@@ -21,6 +22,9 @@ return [
         ],
         'app/Actions/CreateUser.php' => [
             'create-user' => '$user->assignRole(\App\Models\Role::findOrCreate(\App\Enums\Role::SUPER_ADMIN->value));',
+        ],
+        'tests/ArchTest.php' => [
+            'arch-rules' => 'fragments/arch-policies.php',
         ],
         'tests/Pest.php' => [
             'pest-imports' => "use App\\Enums\\Role;\nuse App\\Models\\User;",

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Exceptions\SocialLoginRejected;
+use App\Exceptions\SocialLoginException;
 use App\Models\SocialAccount;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +26,7 @@ final class ResolveUserFromSocialite {
     use AsAction;
 
     /**
-     * @throws SocialLoginRejected
+     * @throws SocialLoginException
      */
     public function handle(string $provider, SocialiteUser $social_user): User {
         return DB::transaction(function () use ($provider, $social_user): User {
@@ -46,9 +46,9 @@ final class ResolveUserFromSocialite {
             $user = User::query()->whereRaw('lower(email) = ?', [$email])->first();
 
             if ($user instanceof User) {
-                throw_if($user->email_verified_at === null, SocialLoginRejected::unverifiedLocalAccount());
+                throw_if($user->email_verified_at === null, SocialLoginException::unverifiedLocalAccount());
             } else {
-                throw_unless(config()->boolean('socialite.registration'), SocialLoginRejected::registrationDisabled());
+                throw_unless(config()->boolean('socialite.registration'), SocialLoginException::registrationDisabled());
 
                 $user = $this->register($email, $social_user);
             }
@@ -69,9 +69,9 @@ final class ResolveUserFromSocialite {
     private function verifiedEmail(string $provider, SocialiteUser $social_user): string {
         $email = $social_user->getEmail();
 
-        throw_if($email === null || $email === '', SocialLoginRejected::missingEmail());
+        throw_if($email === null || $email === '', SocialLoginException::missingEmail());
 
-        throw_unless($this->isEmailVerified($provider, $social_user), SocialLoginRejected::unverifiedEmail());
+        throw_unless($this->isEmailVerified($provider, $social_user), SocialLoginException::unverifiedEmail());
 
         return Str::lower($email);
     }

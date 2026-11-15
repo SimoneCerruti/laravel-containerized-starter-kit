@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Auth;
 
 use App\Actions\ResolveUserFromSocialite;
-use App\Exceptions\SocialLoginRejected;
+use App\Exceptions\SocialLoginException;
 use GuzzleHttp\Exception\ClientException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,7 +18,7 @@ final class SocialiteCallbackController {
     public function __invoke(Request $request, string $provider): RedirectResponse {
         try {
             $user = ResolveUserFromSocialite::run($provider, Socialite::driver($provider)->user());
-        } catch (SocialLoginRejected $exception) {
+        } catch (SocialLoginException $exception) {
             return $this->failed($exception->getMessage());
         } catch (InvalidStateException|ClientException) {
             return $this->failed(Lang::string('Sign-in with :provider failed. Please try again.', ['provider' => $provider]));
