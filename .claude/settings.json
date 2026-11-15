@@ -12,7 +12,6 @@
     "permissions": {
         "defaultMode": "plan",
         "deny": [
-            "Read(./.env)",
             "Read(./.env.local)",
             "Read(./.env.production)",
             "Read(./.env.staging)",
@@ -99,9 +98,7 @@
             "Bash(composer stan *)",
             "Bash(cat .env.testing)",
             "Bash(grep * .env.testing)",
-            "Bash(grep * *.env.testing)",
             "Bash(tail .env.testing)",
-            "Bash(tail *.env.testing)",
             "Read(./.env.testing)",
             "Edit(./.env.testing)"
         ]
