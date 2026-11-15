@@ -91,10 +91,14 @@ jobs:
       - name: Check the gateway version
         run: |
           required=$(tr -d '[:space:]' < deploy/gateway.version)
-          installed=$(ssh deploy-target version | awk '{print $2}')
+          # a gateway older than 1.0 does not know the verb: the answer is then not a version
+          installed=$(ssh deploy-target version 2>/dev/null | awk '/^deploy-gateway /{print $2}' || true)
+          if [[ ! "$installed" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            installed=
+          fi
           echo "gateway on the server: ${installed:-unknown}, required: $required"
 
-          if [[ -z "$installed" || "${installed%%.*}" != "${required%%.*}" || "$(printf '%s\n%s\n' "$required" "$installed" | sort -V | head -n 1)" != "$required" ]]; then
+          if [[ -z "$installed" ||"${installed%%.*}" != "${required%%.*}" || "$(printf '%s\n%s\n' "$required" "$installed" | sort -V | head -n 1)" != "$required" ]]; then
             echo "::error::the gateway on the server ($installed) does not satisfy $required: install the release v$required of laravel-deploy-gateway"
             exit 1
           fi
