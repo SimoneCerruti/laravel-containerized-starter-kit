@@ -1,13 +1,14 @@
 # Compose file for staging and production on the shared VPS. Same file everywhere: the differences
-# live in the .env of each environment. It is validated by deploy/gateway.sh before it becomes active,
-# so only what the policy allows can be used here (see deploy/README.md).
+# live in the .env of each environment. It is validated by the deploy gateway of the server before it becomes
+# active (and by the PR checks, with the same policy), so only what the policy allows can be used
+# here (see deploy/README.md and the gateway repository).
 #
 # Variables used here come from the .env of the environment:
 #   IMAGE_REF            repo@sha256:..., written by the pipeline
 #   COMPOSE_PROJECT_NAME <app>-<env>, exported by the gateway
 #   APP_HOST             public hostname (must be in ALLOWED_HOSTS of deploy.conf)
 #   DB_DATABASE, DB_USERNAME, DB_PASSWORD
-#   optional: TRAEFIK_ENTRYPOINT, TRAEFIK_CERTRESOLVER, APP_MEMORY_LIMIT
+#   optional: TRAEFIK_ENTRYPOINT, TRAEFIK_CERTRESOLVER, APP_MEMORY_LIMIT, APP_CPUS, DB_MEMORY_LIMIT, DB_CPUS
 
 services:
   app:
@@ -32,11 +33,14 @@ services:
       start_period: 120s
     # workers stop with stopwaitsecs=660 (see laravel-worker-supervisor.conf): leave room for a running job
     stop_grace_period: 11m
+    # the server is shared: the gateway requires a ceiling for memory, CPU and processes on every service
     mem_limit: ${APP_MEMORY_LIMIT:-1g}
+    cpus: ${APP_CPUS:-1}
+    pids_limit: 512
     security_opt:
       - no-new-privileges:true
     # the image starts as root (supervisord) and drops to www-data: keep the capabilities that needs,
-    # remove the ones nothing in the container uses
+    # remove the ones nothing in the container uses (NET_RAW is required by the gateway)
     cap_drop:
       - MKNOD
       - NET_RAW
@@ -47,7 +51,7 @@ services:
     # list form: variables are not interpolated in the keys of a mapping, and the router name is one
     labels:
       - traefik.enable=true
-      - traefik.docker.network=traefik
+      - traefik.docker.network=traefik-${COMPOSE_PROJECT_NAME:?}
       - traefik.http.routers.${COMPOSE_PROJECT_NAME:?}.rule=Host(`${APP_HOST:?}`)
       - traefik.http.routers.${COMPOSE_PROJECT_NAME}.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
       - traefik.http.routers.${COMPOSE_PROJECT_NAME}.tls=true
@@ -55,7 +59,8 @@ services:
       - traefik.http.services.${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=80
 
   db:
-    image: postgres:18
+    # pinned by digest (required by the gateway): Renovate updates tag and digest together
+    image: postgres:18@sha256:2ea8630df176ad090ec92136dee850397c5af8781e4bcf2e4162593691c61bbc
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_DATABASE:?}
@@ -66,8 +71,13 @@ services:
       - pgsql_data:/var/lib/postgresql
     networks:
       - backend
+    mem_limit: ${DB_MEMORY_LIMIT:-1g}
+    cpus: ${DB_CPUS:-1}
+    pids_limit: 256
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - NET_RAW
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -q -d $$POSTGRES_DB -U $$POSTGRES_USER"]
       interval: 5s
@@ -79,9 +89,9 @@ networks:
   # the database is reachable only from the app of this environment and has no internet access
   backend:
     internal: true
-  # shared with Traefik, created by the Traefik stack
+  # shared only with Traefik: created by add-app.sh on the server, one per app + environment
   proxy:
-    name: traefik
+    name: traefik-${COMPOSE_PROJECT_NAME:?}
     external: true
 
 volumes:

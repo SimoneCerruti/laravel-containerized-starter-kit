@@ -20,6 +20,15 @@
     "docker": {
         "enabled": true
     },
+    "packageRules": [
+        {
+            "description": "The deploy gateway requires images pinned by digest: tag and digest are updated together",
+            "matchManagers": [
+                "docker-compose"
+            ],
+            "pinDigests": true
+        }
+    ],
     "github-actions": {
         "enabled": true,
         "pinDigests": true
