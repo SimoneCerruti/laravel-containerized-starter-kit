@@ -132,3 +132,38 @@ jobs:
             fi
           fi
           docker buildx imagetools create --tag "$IMAGE:$TAG" "$IMAGE:$SHA"
+
+      # The server refuses an image that carries traefik.* or com.docker.compose.* labels (Traefik would
+      # read them like the ones of the compose file). Same check here, so it fails the pipeline before
+      # the deploy instead of on the server. The gateway is the pinned release, verified by hash.
+      - name: Gateway version
+        id: gateway
+        run: |
+          version=$(tr -d '[:space:]' < deploy/gateway.version)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::deploy/gateway.version must look like 1.2.3"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ vars.GATEWAY_REPOSITORY || 'SimoneCerruti/laravel-deploy-gateway' }}
+          ref: v${{ steps.gateway.outputs.version }}
+          token: ${{ secrets.GATEWAY_REPO_TOKEN || github.token }}
+          path: .gateway
+          persist-credentials: false
+
+      - name: Check the image labels
+        env:
+          DIGEST: ${{ steps.tag.outputs.digest }}
+        run: |
+          expected=$(tr -d '[:space:]' < deploy/gateway.sha256)
+          actual=$(sha256sum .gateway/gateway.sh | cut -d' ' -f1)
+          if [[ ! "$expected" =~ ^[0-9a-f]{64}$ || "$actual" != "$expected" ]]; then
+            echo "::error::gateway.sh of the release differs from deploy/gateway.sha256 ($actual)"
+            exit 1
+          fi
+
+          docker pull "$IMAGE@$DIGEST"
+          .gateway/gateway.sh --check-image "$IMAGE@$DIGEST"

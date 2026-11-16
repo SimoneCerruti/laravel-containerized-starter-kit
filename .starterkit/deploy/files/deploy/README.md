@@ -38,7 +38,7 @@ Migrations run **before** the rollout and never in the entrypoint: if a migratio
 | Image | Built only in CI, tag = SHA, deployed by digest. Production reuses the staging image. | Production runs exactly what was tested. A tag can be moved, a digest cannot. |
 | Orchestration | Sequence of verbs in `_deploy.yml`; what must happen all at once lives in a single verb (`rollout`). | Every step is visible in the CI logs and the server holds no deploy logic. |
 | Server access | `deploy` user with a *forced command*, one key per app + environment. | `deploy` is in the `docker` group, i.e. root on the host: the gateway is the real security boundary. |
-| Validation | `activate` runs `docker compose config` and applies a `jq` policy; the **normalized** file becomes the active one. | What runs is what was validated, not what was uploaded. Includes, extends and variables are already resolved. |
+| Validation | `activate` runs `docker compose config` and applies a `jq` policy; the **normalized** file becomes the active one. | What runs is what was validated, not what was uploaded. Variables are already resolved; `include` and `extends` are refused. |
 | Gateway | A separate repository, installed on the server once and pinned per project by `deploy/gateway.version`. | The gateway is server infrastructure and the security boundary: one copy, with its own tests and releases, instead of one drifting copy per app. |
 | Policy in CI | `pr-checks.yml` runs the gateway's offline `--check-compose` on `deploy/compose.yml`, at the pinned version, after checking that the cloned `gateway.sh` has the SHA-256 in `deploy/gateway.sha256` (a release tag can be moved, the hash cannot). When you upgrade the gateway, change `deploy/gateway.version` and `deploy/gateway.sha256` together, in a reviewed PR. | A compose file the server would refuse fails the pull request, not the deploy. |
 | Per-app configuration | `/var/www/<app>/<env>/deploy.conf`, owned by root: `ALLOWED_HOSTS`, `ALLOWED_ENTRYPOINTS`, `ALLOWED_CERTRESOLVERS`, … | It sits next to the app, but neither `deploy` nor the containers can change it. |
@@ -58,15 +58,20 @@ Migrations run **before** the rollout and never in the entrypoint: if a migratio
 
 ### What the gateway policy blocks
 
-`activate` rejects the compose file if it contains anything outside the allowed list; the full policy is in the README of the gateway repository. In short: the keys of a service are an *allow-list* (no `privileged`, `cap_add`, `ports`, `network_mode`, `build`, `container_name`, …); the **only** bind mount is `./.env`, read-only (a wider rule would let a container plant a symlink in the state directory and have the next deploy mount any host path); named volumes and networks must be `<app>-<env>_…` and cannot use `driver_opts`; the only external network is `traefik`; Traefik routers, services and middlewares must be named `<app>-<env>` or start with `<app>-<env>--`, rules must use `Host(…)` with the hosts of `ALLOWED_HOSTS`, entrypoints and certresolvers must be in the allow-lists of `deploy.conf`; `include` and `extends` are rejected.
+`activate` rejects the compose file if it breaks the policy; the full text is in the README of the gateway repository ("The compose policy"). The server hosts apps of other customers, so the gateway assumes that any one app's pipeline may be hostile. In short:
 
-Images are an allow-list too: every `image:` of the compose file and the repository of `IMAGE_REF` must be in `ALLOWED_IMAGE_REPOS` of the app's `deploy.conf`, and every service needs a `mem_limit` and `security_opt: [no-new-privileges:true]`. A tag or digest inside an allowed repository is whatever the pipeline pushed there, so keep push rights to the registry in CI only.
+- **Parsing**: the file is parsed by a pinned `yq` and compose only reads the result. `include` and `extends` (in any spelling) and YAML tags such as `!!binary`, `!reset` or `!override` are rejected, and so is a multi-document file.
+- **Services**: the keys are an *allow-list* (no `privileged`, `cap_add`, `ports`, `network_mode`, `build`, `container_name`, `ulimits`, …). Every service needs `security_opt: [no-new-privileges:true]`, `cap_drop` including `NET_RAW`, and `mem_limit`, `cpus` and `pids_limit` within the ceilings of `deploy.conf` (`MAX_SERVICE_MEMORY_MB`, `MAX_SERVICE_CPUS`, `MAX_SERVICE_PIDS`); `memswap_limit`, if set, between `mem_limit` and twice that.
+- **Images**: every `image:` and the repository of `IMAGE_REF` must be in `ALLOWED_IMAGE_REPOS`, and every `image:` is **pinned by digest** (`name@sha256:…`, or `name:tag@sha256:…`: Renovate keeps tag and digest together). The image must not carry `traefik.*` or `com.docker.compose.*` labels: the server inspects it after the pull, and `_image.yml` checks it right after the build. A digest inside an allowed repository is whatever the pipeline pushed there, so keep push rights to the registry in CI only.
+- **Mounts, volumes**: the **only** bind mount is `./.env`, read-only (a wider rule would let a container plant a symlink in the state directory and have the next deploy mount any host path); volumes are named `<app>-<env>_…` and cannot use `driver` or `driver_opts`.
+- **Networks**: the only external network is the app's own proxy network, `traefik-<app>-<env>` (`traefik-${COMPOSE_PROJECT_NAME}` in the compose file), which `add-app.sh` creates; `traefik.docker.network` must be that one. The others must be `<app>-<env>_…`.
+- **Traefik**: routers, services and middlewares are named `<app>-<env>` or start with `<app>-<env>--`. Every router sets `rule` **and** `entrypoints`. The rule is ``Host(`host`)`` with a host of `ALLOWED_HOSTS` (backticks, no double quotes), optionally followed by `&&` and `Path`, `PathPrefix`, `PathRegexp`, `Header`, `HeaderRegexp`, `Method`, `Query`, `QueryRegexp` or `ClientIP`; no `||`, `!` or parentheses. Entrypoints and certresolvers must be in the allow-lists of `deploy.conf`. The `buffering`, `retry`, `forwardauth` and `errors` middlewares are not allowed.
 
-The same policy runs on every pull request (`pr-checks.yml`, job `compose-policy`), at the version in `deploy/gateway.version`. If you add variables with `${VAR:?}` to `deploy/compose.yml`, add a dummy value for them in that job.
+The same policy runs on every pull request (`pr-checks.yml`, job `compose-policy`), at the version in `deploy/gateway.version`, with the pinned `yq`. If you add variables with `${VAR:?}` to `deploy/compose.yml`, add a dummy value for them in that job.
 
 ## Server setup
 
-The server needs Docker with the Compose plugin, `jq`, `flock`, `curl` and Traefik with the external network `traefik`.
+The server needs Docker with the Compose plugin, `jq`, `flock`, `logger`, `curl`, `timeout` and Traefik. Besides the steps below, the host needs the settings of *Traefik*, *Docker daemon*, *Firewall* and *sshd* in the README of the gateway repository: they are what makes the isolation between apps hold, and `install.sh` warns about the ones it can check.
 
 1. **Gateway (once per server)**: from a checkout of the [laravel-deploy-gateway](https://github.com/SimoneCerruti/laravel-deploy-gateway) repository at the tag in `deploy/gateway.version`:
 
@@ -76,7 +81,7 @@ The server needs Docker with the Compose plugin, `jq`, `flock`, `curl` and Traef
    sudo ./install.sh
    ```
 
-   It installs docker-rollout (pinned and verified), creates the `deploy` user (in the `docker` group, which is root on the host: that is why the gateway is the security boundary) and installs `/usr/local/bin/deploy-gateway`. To upgrade, check out the newer tag and run it again; then change `deploy/gateway.version` and `deploy/gateway.sha256` together, in a reviewed PR, in the projects that should require it.
+   It must run from a clean checkout of a tag (it verifies the tag's signature if it is signed). It installs docker-rollout and `yq` (each pinned by version and checksum), creates the `deploy` user (in the `docker` group, which is root on the host: that is why the gateway is the security boundary) and installs `/usr/local/bin/deploy-gateway`. To upgrade, check out the newer tag and run it again; then change `deploy/gateway.version` and `deploy/gateway.sha256` together, in a reviewed PR, in the projects that should require it.
 
 2. **SSH key**, one per app + environment. Generate it locally:
 
@@ -90,11 +95,22 @@ The server needs Docker with the Compose plugin, `jq`, `flock`, `curl` and Traef
    sudo ./add-app.sh <app> <env> "app.example.com" ./deploy_key.pub ALLOWED_IMAGE_REPOS="docker.io/<DOCKERHUB_NAMESPACE>/<app> postgres"
    ```
 
-   It creates `/var/www/<app>/<env>/deploy.conf` (root-owned), `state/` and the `authorized_keys` line with the forced command. `<env>` has no hyphens. The hosts must list every host the router may serve (including `www.` if you add it). `ALLOWED_IMAGE_REPOS` is required and lists every image repository the app may run: the app image and `postgres`, plus any service you add to the compose file. Every service also needs a `mem_limit` (at most `MAX_SERVICE_MEMORY_MB`, 4096 by default) and `security_opt: [no-new-privileges:true]`. For another certresolver, entrypoint, or a different migrate command, pass `ALLOWED_CERTRESOLVERS=…`, `ALLOWED_ENTRYPOINTS=…`, `MIGRATE_COMMAND=…` (see the gateway README).
+   It creates `/var/www/<app>/<env>/deploy.conf` (root-owned), `state/`, the proxy network `traefik-<app>-<env>` (with the Traefik container attached) and the `authorized_keys` line with the forced command. `<env>` has no hyphens. A host already assigned to another app + environment is refused. The hosts must list every host the router may serve (including `www.` if you add it). `ALLOWED_IMAGE_REPOS` is required and lists every image repository the app may run: the app image and `postgres`, plus any service you add to the compose file. The ceilings of each service are `MAX_SERVICE_MEMORY_MB` (4096 by default), `MAX_SERVICE_CPUS` (2) and `MAX_SERVICE_PIDS` (2048): raise them with the same `KEY=value` form if the compose file needs more. For another certresolver, entrypoint, or a different migrate command, pass `ALLOWED_CERTRESOLVERS=…`, `ALLOWED_ENTRYPOINTS=…`, `MIGRATE_COMMAND=…` (see the gateway README).
 
 4. **Known hosts**: `ssh-keyscan -t ed25519 <host>` (check the fingerprint over a trusted channel). The line goes into the `DEPLOY_KNOWN_HOSTS` secret.
 
-5. **Traefik**: entrypoint `websecure`, certresolver `cloudflare` (DNS challenge) and the external network `traefik`. For an app that cannot use Cloudflare DNS, define another resolver (TLS challenge), list it in `ALLOWED_CERTRESOLVERS` of the app's `deploy.conf` and set it with `TRAEFIK_CERTRESOLVER` in the `.env`.
+5. **Traefik**: entrypoint `websecure` and certresolver `cloudflare` (DNS challenge). The Traefik container must be named `traefik` (otherwise set `TRAEFIK_CONTAINER=<name>` for `add-app.sh` and `connect-traefik.sh`), with `providers.docker.exposedByDefault=false`, no custom `defaultRule` and no `providers.docker.network` that apps can join. There is no shared `traefik` network anymore: each app + environment has its own, created by `add-app.sh`. Recreating the Traefik container (a new version, a changed compose) detaches it from those networks: run `sudo ./connect-traefik.sh` afterwards. The DNS token of the certresolver should cover only the zones of the apps on this server. For an app that cannot use Cloudflare DNS, define another resolver (TLS challenge), list it in `ALLOWED_CERTRESOLVERS` of the app's `deploy.conf` and set it with `TRAEFIK_CERTRESOLVER` in the `.env`.
+
+### Servers already in use
+
+A server that ran the previous version of this flow (the gateway inside the project, one shared `traefik` network) moves in this order:
+
+1. Install the new gateway release (step 1 above): `install.sh` from the tag, which also installs `yq`.
+2. Run `add-app.sh` again for **every** app + environment, with `ALLOWED_IMAGE_REPOS` and the same hosts and key as before: it creates the `traefik-<app>-<env>` networks, attaches Traefik to them and refuses a host that is assigned twice.
+3. Deploy every app with its new `deploy/compose.yml` (digests, `cpus`, `pids_limit`, `NET_RAW`, per-app network). Until an app is deployed again it keeps running on the old network, and the old compose is refused by `activate`.
+4. Set up the host settings the gateway README lists (Docker log rotation, firewall, sshd) if they are not there yet.
+
+Until the first new deploy of an environment, `prune` removes nothing: it keeps a history per environment, and the new gateway starts from an empty one.
 
 ## GitHub setup
 
@@ -181,8 +197,8 @@ The compose file does not include it. To add it, put the `www.` host in `ALLOWED
 
 ## Known limits and possible improvements
 
-- **`docker` group is root.** A bug in the gateway or its policy is root on the host. Rootless Docker or user namespaces for `deploy` would contain it; not set up.
-- **Shared `traefik` network.** The `app` containers of different clients sit on the same network and could reach each other. The database cannot be reached: it lives on an internal per-app network. A possible improvement: one proxy network per app + environment, with an idempotent `docker network connect` in the gateway, `default-address-pools` of /24 to avoid running out of subnets, and the network declared in Traefik's compose. It is not implemented, to keep the gateway simple.
+- **`docker` group is root.** A bug in the gateway or its policy is root on the host. The policy, its tests and the host settings above are the defence; rootless Docker does not fit a shared Traefik (see the gateway README, "Known limits").
+- **Proxy networks.** Each app + environment has its own `traefik-<app>-<env>` network, so the `app` containers of different clients cannot reach each other; only Traefik is on all of them. Every network takes a subnet: on a server with many apps set `default-address-pools` in `daemon.json`.
 - **Secrets are readable by anyone who can write to the repo**: a modified workflow can read them. That is why everyone with write access is assumed to be trusted (no Environments on the free plan).
 - **The `.env` on the server is readable by `www-data` inside the container** (Laravel needs it) and, on the host, only by `deploy` and root, because `state/` is `700`.
 - **Docker Hub free**: a single private repo per account, hence one account per client. The read-only token on the server is used only during `pull`, in a temporary Docker config deleted right after.

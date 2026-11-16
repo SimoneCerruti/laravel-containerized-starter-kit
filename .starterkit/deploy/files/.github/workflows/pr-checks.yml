@@ -85,6 +85,10 @@ jobs:
             exit 1
           fi
 
+      # The gateway parses the compose file with a pinned yq (version and checksum), not the one of the runner
+      - name: Install yq
+        run: sudo .gateway/tools/install-yq.sh /usr/local/lib/deploy-gateway/yq
+
       # Dummy values for the variables compose.yml requires: the real ones live in the environments' secrets
       - name: Check deploy/compose.yml
         run: |
