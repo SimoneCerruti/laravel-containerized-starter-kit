@@ -5,7 +5,7 @@
 #
 # Variables used here come from the .env of the environment:
 #   IMAGE_REF            repo@sha256:..., written by the pipeline
-#   COMPOSE_PROJECT_NAME <app>-<env>, exported by the gateway
+#   COMPOSE_PROJECT_NAME <id>-<env>, exported by the gateway
 #   APP_HOST             public hostname (must be in ALLOWED_HOSTS of deploy.conf)
 #   DB_DATABASE, DB_USERNAME, DB_PASSWORD
 #   optional: TRAEFIK_ENTRYPOINT, TRAEFIK_CERTRESOLVER, APP_MEMORY_LIMIT, APP_CPUS, DB_MEMORY_LIMIT, DB_CPUS
@@ -89,7 +89,7 @@ networks:
   # the database is reachable only from the app of this environment and has no internet access
   backend:
     internal: true
-  # shared only with Traefik: created by add-app.sh on the server, one per app + environment
+  # shared only with Traefik: created by deploy-gateway-add-app on the server, one per app + environment
   proxy:
     name: traefik-${COMPOSE_PROJECT_NAME:?}
     external: true
