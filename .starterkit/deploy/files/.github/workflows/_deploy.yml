@@ -126,6 +126,27 @@ jobs:
             printf 'APP_VERSION=%s\n' "$VERSION"
           } > "$RUNNER_TEMP/dotenv"
 
+          # The gateway accepts one variable per line only and refuses the rest at activate, after the upload:
+          # the same grammar here fails before touching the server. The file is a secret, so only the
+          # line numbers are printed, never their content.
+          key='[A-Za-z_][A-Za-z0-9_.-]*'
+          value="(\"([^\"\\\\]|\\\\.)*\"[[:blank:]]*(#.*)?|'[^']*'[[:blank:]]*(#.*)?|[^\"'[:blank:]][^"$'\r'"]*|)"
+          assignment="^[[:blank:]]*(export[[:blank:]]+)?${key}[[:blank:]]*(=[[:blank:]]*${value})?\$"
+          blank='^[[:blank:]]*(#.*)?$'
+          invalid=()
+          number=0
+          while IFS= read -r line || [[ -n $line ]]; do
+            number=$((number + 1))
+            line=${line%$'\r'}
+            if [[ ! $line =~ $blank && ! $line =~ $assignment ]]; then
+              invalid+=("$number")
+            fi
+          done < "$RUNNER_TEMP/dotenv"
+          if ((${#invalid[@]} > 0)); then
+            echo "::error::the .env secret must hold one KEY=value per line (KEY=\"…\" or KEY='…' closed on the same line, comments, blank lines; no KEY: value, no values over several lines): not lines $(IFS=,; echo "${invalid[*]:0:5}")"
+            exit 1
+          fi
+
           app_url=$(grep -E '^APP_URL=' "$RUNNER_TEMP/dotenv" | tail -n 1 | cut -d= -f2- | tr -d "\"'")
           if [[ ! "$app_url" =~ ^https?://[^/]+$ ]]; then
             echo "::error::APP_URL in the .env secret must look like https://host"
