@@ -56,6 +56,8 @@ services:
       - traefik.http.routers.${COMPOSE_PROJECT_NAME}.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
       - traefik.http.routers.${COMPOSE_PROJECT_NAME}.tls=true
       - traefik.http.routers.${COMPOSE_PROJECT_NAME}.tls.certresolver=${TRAEFIK_CERTRESOLVER:-cloudflare}
+      # every router names its service: without one Traefik makes up a name (<service>-<project>) that can be another app's service
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.service=${COMPOSE_PROJECT_NAME}
       - traefik.http.services.${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=80
 
   db:
