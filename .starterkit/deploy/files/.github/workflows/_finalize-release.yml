@@ -34,7 +34,7 @@ jobs:
         id: app
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ vars.RELEASE_APP_ID }}
+          app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
       # Check out the source branch with full history and tags, needed to compute the version and the fast-forwards

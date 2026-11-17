@@ -48,17 +48,17 @@ jobs:
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      # Docker Hub account of the client: vars.DOCKERHUB_USERNAME / vars.DOCKERHUB_NAMESPACE (usually the
+      # Docker Hub account of the client: the DOCKERHUB_USERNAME / DOCKERHUB_NAMESPACE secrets (usually the
       # same) and a read-write access token. The repository must allow tag overwrites: the 'staging' tag
       # moves at every deploy.
       - uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
         with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Image repository
         env:
-          NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
+          NAMESPACE: ${{ secrets.DOCKERHUB_NAMESPACE }}
         run: echo "IMAGE=docker.io/$NAMESPACE/__KIT_APP_SLUG__" >> "$GITHUB_ENV"
 
       # Make sure $IMAGE:<sha> exists. Staging builds it; production reuses it, or reuses the parent's image
@@ -70,7 +70,7 @@ jobs:
           ALLOW_BUILD: ${{ inputs.allow_build }}
         run: |
           if [[ -z "${IMAGE:-}" ]]; then
-            echo "::error::IMAGE is not set: set vars.DOCKERHUB_NAMESPACE"
+            echo "::error::IMAGE is not set: set the DOCKERHUB_NAMESPACE secret"
             exit 1
           fi
 
@@ -146,13 +146,21 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: clone
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ vars.GATEWAY_REPOSITORY || 'SimoneCerruti/laravel-deploy-gateway' }}
+          repository: ${{ secrets.GATEWAY_REPOSITORY || 'SimoneCerruti/laravel-deploy-gateway' }}
           ref: v${{ steps.gateway.outputs.version }}
           token: ${{ secrets.GATEWAY_REPO_TOKEN || github.token }}
           path: .gateway
           persist-credentials: false
+
+      - name: Gateway clone failed
+        if: steps.clone.outcome == 'failure'
+        run: |
+          echo "::error::the gateway repository could not be cloned: if it is private, set the GATEWAY_REPO_TOKEN secret (read access to it); check also the GATEWAY_REPOSITORY secret and the tag in deploy/gateway.version"
+          exit 1
 
       - name: Check the image labels
         env:
