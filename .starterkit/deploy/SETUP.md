@@ -15,15 +15,14 @@ The code is built in CI and rolled out to the shared VPS (Traefik + Docker Compo
    - It also creates the proxy network `traefik-<id>-<env>` and attaches Traefik to it, and it refuses a host that another app + environment already has.
    - Running it again with the same app + environment updates the configuration and the key.
 4. **Traefik**: entrypoint `websecure` and certresolver `cloudflare`, a container named `traefik` (or `TRAEFIK_CONTAINER=<name>` for `deploy-gateway-add-app` and `deploy-gateway-connect-traefik`), `providers.docker.exposedByDefault=false`, no custom `defaultRule`. There is no shared `traefik` network anymore. After recreating the Traefik container run `sudo deploy-gateway-connect-traefik`. The DNS token of the certresolver should cover only the zones of the apps on the server.
-5. **Known hosts**: `ssh-keyscan -t ed25519 <host>`, checked over a trusted channel; the line is the `DEPLOY_KNOWN_HOSTS` secret.
-6. **GitHub variables**: `DEPLOY_HOST`, `DOCKERHUB_USERNAME`, `DOCKERHUB_NAMESPACE`, `RELEASE_APP_ID`, and `GATEWAY_REPOSITORY` only if the gateway repository is not `SimoneCerruti/laravel-deploy-gateway`.
-7. **GitHub secrets**: the ones with the `_STAGING` / `_PRODUCTION` suffixes (`DOTENV_*`, `DEPLOY_SSH_KEY_*`), `DEPLOY_KNOWN_HOSTS`, the Docker Hub tokens, and `GATEWAY_REPO_TOKEN` (read access to the gateway repository) if that repository is private. Without it the `compose-policy` check of pull requests cannot clone the gateway.
-8. **Docker Hub**: create the private repository `<DOCKERHUB_NAMESPACE>/__KIT_APP_SLUG__`; the pull token on the server must be read-only.
-9. **DNS**: point `APP_HOST` of each environment to the server.
-10. **`.env` of each environment**: set `APP_ENV=production`, `APP_DEBUG=false`, `LOG_LEVEL`, `MAIL_*` and the database credentials. One variable per line (`KEY=value`, or `KEY="…"` / `KEY='…'` closed on the same line): `KEY: value` and values over several lines (PEM keys) are refused by the gateway, and the *Build .env* step fails early with the line numbers.
-11. **Branch protection**: protect `main`, `staging` and `production` and require the `pr-checks.yml` checks (including `compose-policy`).
-12. **First start**: create the first user with `docker compose exec app php artisan users:create` (see *First start*).
-13. **Uptime**: monitor `https://<APP_HOST>/up` from outside, for example with [cron-job.org](https://cron-job.org/en/).
+5. **Known hosts**: `ssh-keyscan -H -t ed25519 <host>` (`-H` hashes the host, so the secret does not reveal it), checked over a trusted channel; the line is the `DEPLOY_KNOWN_HOSTS` secret.
+6. **GitHub secrets**: everything is a secret, so that nothing shows in the UI or the logs: `DEPLOY_HOST`, `DOCKERHUB_USERNAME`, `DOCKERHUB_NAMESPACE`, `RELEASE_APP_ID`, `GATEWAY_REPOSITORY` (only if the gateway repository is not `SimoneCerruti/laravel-deploy-gateway`), the ones with the `_STAGING` / `_PRODUCTION` suffixes (`DOTENV_*`, `DEPLOY_SSH_KEY_*`), `DEPLOY_KNOWN_HOSTS`, the Docker Hub tokens, and `GATEWAY_REPO_TOKEN` (read access to the gateway repository) if that repository is private. Without it the `compose-policy` check of pull requests cannot clone the gateway.
+7. **Docker Hub**: create the private repository `<DOCKERHUB_NAMESPACE>/__KIT_APP_SLUG__`; the pull token on the server must be read-only.
+8. **DNS**: point `APP_HOST` of each environment to the server.
+9. **`.env` of each environment**: set `APP_ENV=production`, `APP_DEBUG=false`, `LOG_LEVEL`, `MAIL_*` and the database credentials. One variable per line (`KEY=value`, or `KEY="…"` / `KEY='…'` closed on the same line): `KEY: value` and values over several lines (PEM keys) are refused by the gateway, and the *Build .env* step fails early with the line numbers.
+10. **Branch protection**: protect `main`, `staging` and `production` and require the `pr-checks.yml` checks (including `compose-policy`).
+11. **First start**: create the first user with `docker compose exec app php artisan users:create` (see *First start*).
+12. **Uptime**: monitor `https://<APP_HOST>/up` from outside, for example with [cron-job.org](https://cron-job.org/en/).
 
 When you edit `deploy/compose.yml`, the gateway enforces (the `compose-policy` check of pull requests tells you before the deploy does):
 - every `image:` pinned by digest (`name:tag@sha256:…`) and its repository in `ALLOWED_IMAGE_REPOS` of each environment; the app image must carry no `traefik.*` or `com.docker.compose.*` labels;

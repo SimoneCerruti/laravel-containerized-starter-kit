@@ -63,13 +63,21 @@ jobs:
 
       # The gateway repository can be private: GATEWAY_REPO_TOKEN (read access to it) is then needed.
       # The token is not left in the clone: the gateway script runs in a later step.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: clone
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ vars.GATEWAY_REPOSITORY || 'SimoneCerruti/laravel-deploy-gateway' }}
+          repository: ${{ secrets.GATEWAY_REPOSITORY || 'SimoneCerruti/laravel-deploy-gateway' }}
           ref: v${{ steps.gateway.outputs.version }}
           token: ${{ secrets.GATEWAY_REPO_TOKEN || github.token }}
           path: .gateway
           persist-credentials: false
+
+      - name: Gateway clone failed
+        if: steps.clone.outcome == 'failure'
+        run: |
+          echo "::error::the gateway repository could not be cloned: if it is private, set the GATEWAY_REPO_TOKEN secret (read access to it); check also the GATEWAY_REPOSITORY secret and the tag in deploy/gateway.version"
+          exit 1
 
       # A release tag can be moved: the script that was cloned must be the reviewed one
       - name: Verify the gateway release

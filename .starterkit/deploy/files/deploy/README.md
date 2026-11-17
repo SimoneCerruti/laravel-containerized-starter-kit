@@ -123,7 +123,7 @@ The server needs Docker with the Compose plugin, `jq`, `flock`, `logger`, `curl`
 
    For another certresolver, entrypoint, or a different migrate command, pass `ALLOWED_CERTRESOLVERS=…`, `ALLOWED_ENTRYPOINTS=…`, `MIGRATE_COMMAND=…` (see the gateway README).
 
-4. **Known hosts**: `ssh-keyscan -t ed25519 <host>` (check the fingerprint over a trusted channel). The line goes into the `DEPLOY_KNOWN_HOSTS` secret.
+4. **Known hosts**: `ssh-keyscan -H -t ed25519 <host>` (`-H` hashes the host so the secret does not reveal it; check the fingerprint over a trusted channel). The line goes into the `DEPLOY_KNOWN_HOSTS` secret.
 
 5. **Traefik**: entrypoint `websecure` and certresolver `cloudflare` (DNS challenge). The Traefik container must be named `traefik` (otherwise set `TRAEFIK_CONTAINER=<name>` for `deploy-gateway-add-app` and `deploy-gateway-connect-traefik`), with `providers.docker.exposedByDefault=false`, no custom `defaultRule` and no `providers.docker.network` that apps can join. There is no shared `traefik` network anymore: each app + environment has its own, created by `deploy-gateway-add-app`. Recreating the Traefik container (a new version, a changed compose) detaches it from those networks: run `sudo deploy-gateway-connect-traefik` afterwards. The DNS token of the certresolver should cover only the zones of the apps on this server. For an app that cannot use Cloudflare DNS, define another resolver (TLS challenge), list it in `ALLOWED_CERTRESOLVERS` of the app's `deploy.conf` and set it with `TRAEFIK_CERTRESOLVER` in the `.env`.
 
@@ -140,20 +140,15 @@ Until the first new deploy of an environment, `prune` removes nothing: it keeps 
 
 ## GitHub setup
 
-**Variables** (repository):
+**Secrets** (repository). Everything is a secret, no variables: nothing shows in the GitHub UI or in the logs.
 
-| Name | Value |
+| Name | Content |
 | --- | --- |
 | `DEPLOY_HOST` | Hostname or IP of the VPS |
 | `DOCKERHUB_USERNAME` | The client's Docker Hub user |
 | `DOCKERHUB_NAMESPACE` | Docker Hub namespace (usually the same as the user) |
 | `RELEASE_APP_ID` | ID of the GitHub App used by release and hotfix |
 | `GATEWAY_REPOSITORY` | Optional: the gateway repository, if it is not `SimoneCerruti/laravel-deploy-gateway` |
-
-**Secrets** (repository):
-
-| Name | Content |
-| --- | --- |
 | `DEPLOY_SSH_KEY_STAGING`, `DEPLOY_SSH_KEY_PRODUCTION` | Private key of the environment |
 | `DEPLOY_KNOWN_HOSTS` | The `ssh-keyscan` line |
 | `DOTENV_STAGING`, `DOTENV_PRODUCTION` | Content of the `.env` of each environment |

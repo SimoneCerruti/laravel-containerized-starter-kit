@@ -96,12 +96,13 @@ jobs:
     with:
       environment: production
       sha: ${{ needs.checks.outputs.sha }}
-      image_ref: docker.io/${{ vars.DOCKERHUB_NAMESPACE }}/__KIT_APP_SLUG__@${{ needs.image.outputs.digest }}
+      digest: ${{ needs.image.outputs.digest }}
       version: ${{ needs.checks.outputs.tag }}
-      host: ${{ vars.DEPLOY_HOST }}
-      registry_user: ${{ vars.DOCKERHUB_USERNAME }}
     # repository secrets with a suffix per environment: private free repositories have no GitHub Environments
     secrets:
+      host: ${{ secrets.DEPLOY_HOST }}
+      registry_user: ${{ secrets.DOCKERHUB_USERNAME }}
+      image_namespace: ${{ secrets.DOCKERHUB_NAMESPACE }}
       ssh_key: ${{ secrets.DEPLOY_SSH_KEY_PRODUCTION }}
       known_hosts: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
       dotenv: ${{ secrets.DOTENV_PRODUCTION }}
