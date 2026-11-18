@@ -175,3 +175,11 @@ jobs:
 
           docker pull "$IMAGE@$DIGEST"
           .gateway/gateway.sh --check-image "$IMAGE@$DIGEST"
+
+      # Permissions of the code, files that must not ship, and a first start on an empty database: it fails
+      # the pipeline here instead of showing up on the first deploy of an environment. The script is the one
+      # of the checked-out commit, run against the image of that commit (or of its parent, when reused).
+      - name: Check the image
+        env:
+          DIGEST: ${{ steps.tag.outputs.digest }}
+        run: bash .github/scripts/check-image.sh "$IMAGE@$DIGEST" deploy/compose.yml

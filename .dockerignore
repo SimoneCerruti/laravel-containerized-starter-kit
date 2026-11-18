@@ -47,6 +47,9 @@
 /.cursor
 /.copilot
 /CLAUDE.md
+/AGENTS.md
+/.agents
+/.codegraph
 /boost.json
 /.vscode
 /.idea
@@ -66,6 +69,8 @@
 
 # Docs / misc
 /README.md
+/SETUP.md
+/renovate.json
 /Homestead.json
 /Homestead.yaml
 /auth.json
