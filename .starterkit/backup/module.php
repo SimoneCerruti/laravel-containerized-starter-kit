@@ -12,13 +12,14 @@ return [
         'spatie/laravel-backup' => '^10.3',
     ],
     'env' => [
+        'BACKUP_ENABLED' => 'true',
         'BACKUP_DISKS' => 'local',
         'BACKUP_ARCHIVE_PASSWORD' => '',
         'BACKUP_NOTIFICATION_EMAIL' => '',
     ],
     'fragments' => [
         'routes/console.php' => [
-            'schedule' => "Schedule::command('backup:clean')->dailyAt('01:00');\nSchedule::command('backup:run')->dailyAt('01:30');\nSchedule::command('backup:monitor')->dailyAt('03:00');",
+            'schedule' => "Schedule::command('backup:clean')->when(fn (): bool => config('backup.enabled'))->dailyAt('01:00');\nSchedule::command('backup:run')->when(fn (): bool => config('backup.enabled'))->dailyAt('01:30');\nSchedule::command('backup:monitor')->when(fn (): bool => config('backup.enabled'))->dailyAt('03:00');",
         ],
     ],
     'variants' => [
