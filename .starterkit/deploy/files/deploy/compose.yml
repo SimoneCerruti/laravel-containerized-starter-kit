@@ -9,6 +9,9 @@
 #   APP_HOST             public hostname (must be in ALLOWED_HOSTS of deploy.conf)
 #   DB_DATABASE, DB_USERNAME, DB_PASSWORD
 #   optional: TRAEFIK_ENTRYPOINT, TRAEFIK_CERTRESOLVER, APP_MEMORY_LIMIT, APP_CPUS, DB_MEMORY_LIMIT, DB_CPUS
+#   staging only: COMPOSE_PROFILES=mailpit turns on the mailpit service (a fake mail inbox at
+#                 https://APP_HOST/mailpit); MAILPIT_UI_AUTH is its login, one htpasswd bcrypt line
+#                 (`htpasswd -nbB user password`, in single quotes in the .env). Never in production.
 
 services:
   app:
@@ -21,6 +24,7 @@ services:
     networks:
       - default
       - backend
+      - mail
       - proxy
     depends_on:
       db:
@@ -87,7 +91,75 @@ services:
       retries: 12
       start_period: 30s
 
+  # Fake mail server for staging: it catches every email the app sends and shows it in a web inbox.
+  # The `mailpit` profile keeps it out of every environment whose .env does not set COMPOSE_PROFILES=mailpit.
+  # Two layers of login on the inbox: Traefik (basicauth) and Mailpit itself (MP_UI_AUTH), same credentials.
+  # Compose interpolates the whole file even for services of a disabled profile, so MAILPIT_UI_AUTH cannot
+  # be required with `:?` here. Left empty, Traefik rejects the basicauth middleware and drops the router:
+  # the inbox is not published (it has no ports, and it is only reachable through Traefik).
+  mailpit:
+    profiles:
+      - mailpit
+    # pinned by digest (required by the gateway): Renovate updates tag and digest together
+    image: axllent/mailpit:v1.31.3@sha256:ed9b00c609e77e99c79b93f1178255ebc271868920f2c69a8d166bd5634ed10d
+    restart: unless-stopped
+    environment:
+      MP_UI_AUTH: ${MAILPIT_UI_AUTH:-}
+      MP_WEBROOT: mailpit
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: "200"
+      MP_DISABLE_VERSION_CHECK: "true"
+      MP_BLOCK_REMOTE_CSS_AND_FONTS: "true"
+    user: "65532:65532"
+    read_only: true
+    # SMTP (1025) is reachable only from the app, over the internal `mail` network.
+    # Messages live in memory-backed storage: they are lost when the container is recreated, and the size counts against mem_limit
+    tmpfs:
+      - /data:size=96m,mode=1777
+    networks:
+      - mail
+      - proxy
+    mem_limit: 256m
+    cpus: 0.25
+    pids_limit: 64
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik-${COMPOSE_PROJECT_NAME:?}
+      # the path rule is longer than the app's host-only rule, so Traefik picks this router for /mailpit
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}--mailpit.rule=Host(`${APP_HOST:?}`) && PathPrefix(`/mailpit`)
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}--mailpit.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}--mailpit.tls=true
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}--mailpit.tls.certresolver=${TRAEFIK_CERTRESOLVER:-cloudflare}
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}--mailpit.service=${COMPOSE_PROJECT_NAME}--mailpit
+      # rate limit first, so wrong passwords are throttled before the login is checked
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}--mailpit.middlewares=${COMPOSE_PROJECT_NAME}--mailpit-limit,${COMPOSE_PROJECT_NAME}--mailpit-headers,${COMPOSE_PROJECT_NAME}--mailpit-auth
+      - traefik.http.services.${COMPOSE_PROJECT_NAME}--mailpit.loadbalancer.server.port=8025
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}--mailpit-auth.basicauth.users=${MAILPIT_UI_AUTH:-}
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}--mailpit-auth.basicauth.realm=Mailpit
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}--mailpit-limit.ratelimit.average=10
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}--mailpit-limit.ratelimit.period=1s
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}--mailpit-limit.ratelimit.burst=30
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}--mailpit-headers.headers.framedeny=true
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}--mailpit-headers.headers.contenttypenosniff=true
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}--mailpit-headers.headers.referrerpolicy=no-referrer
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}--mailpit-headers.headers.stsseconds=31536000
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}--mailpit-headers.headers.customresponseheaders.x-robots-tag=noindex, nofollow
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}--mailpit-headers.headers.customresponseheaders.cache-control=no-store
+
 networks:
+  # app -> mailpit (SMTP) only: no internet, no database. Used only when the mailpit profile is on
+  mail:
+    internal: true
   # the database is reachable only from the app of this environment and has no internet access
   backend:
     internal: true

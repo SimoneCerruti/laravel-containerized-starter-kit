@@ -107,8 +107,18 @@ jobs:
             echo "DB_USERNAME=app"
             echo "DB_PASSWORD=secret"
           } > "$RUNNER_TEMP/policy.env"
-          for environment in staging production; do
-            .gateway/gateway.sh --check-compose --compose deploy/compose.yml --app __KIT_APP_SLUG__ --env "$environment" \
-              --hosts app.example.com --images "docker.io/example/__KIT_APP_SLUG__ postgres" \
-              --env-file "$RUNNER_TEMP/policy.env"
-          done
+          # staging runs the mailpit profile (see deploy/README.md), production does not: each is checked as it will run.
+          # The dummy value is a bcrypt htpasswd line (user "demo"), in single quotes like the real one.
+          {
+            cat "$RUNNER_TEMP/policy.env"
+            echo "COMPOSE_PROFILES=mailpit"
+            echo "MAILPIT_UI_AUTH='demo:\$2y\$10\$C/aWA97yPgj8el9XVccvqej90BOdiPN2K0lAMiISSYOQAAmK5K4Re'"
+          } > "$RUNNER_TEMP/policy-staging.env"
+          # mailpit adds 256 MB and 0.25 CPU: the staging deploy.conf raises MAX_APP_MEMORY_MB and MAX_APP_CPUS to match
+          .gateway/gateway.sh --check-compose --compose deploy/compose.yml --app __KIT_APP_SLUG__ --env staging \
+            --hosts app.example.com --images "docker.io/example/__KIT_APP_SLUG__ postgres axllent/mailpit" \
+            --max-app-memory-mb 4352 --max-app-cpus 5 \
+            --env-file "$RUNNER_TEMP/policy-staging.env"
+          .gateway/gateway.sh --check-compose --compose deploy/compose.yml --app __KIT_APP_SLUG__ --env production \
+            --hosts app.example.com --images "docker.io/example/__KIT_APP_SLUG__ postgres" \
+            --env-file "$RUNNER_TEMP/policy.env"

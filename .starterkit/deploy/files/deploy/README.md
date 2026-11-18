@@ -33,6 +33,7 @@ The order of this file: first what to do on a new project (Part 1), then routine
 - [Operations](#operations)
   - [Migrations: expand / contract](#migrations-expand--contract)
   - [Adding the `www` redirect](#adding-the-www-redirect)
+  - [MailPit in staging](#mailpit-in-staging)
 
 **Part 3 — Reference** (how it works and why)
 
@@ -241,7 +242,7 @@ Use a **different** `APP_KEY` and `DB_PASSWORD` for each environment, and set th
 
 The `.env` of each environment must contain at least: `APP_NAME`, `APP_ENV`, `APP_KEY`, `APP_URL` (with `https://`, CI calls `APP_URL/up`), `APP_HOST` (the host only, no scheme), `ACTUAL_TIMEZONE`, `DB_CONNECTION=pgsql`, `DB_HOST=db`, `DB_PORT=5432`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`. Also set `APP_DEBUG=false`, `LOG_LEVEL` (e.g. `warning`) and the mail settings (`MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`): the default `MAIL_MAILER=log` writes emails (email verification, password reset, notifications) to the log instead of sending them. The pipeline appends `IMAGE_REF` and `APP_VERSION` at the end, so they win over any duplicate.
 
-**Format.** One variable per line, as the gateway 2.0 requires: `KEY=value`; `KEY="…"` or `KEY='…'` closed on the same line, optionally followed by `# comment`; an optional `export ` prefix; `KEY` alone, comments and blank lines (a trailing CR is tolerated). `KEY` is `[A-Za-z_][A-Za-z0-9_.-]*`. `KEY: value` and values over several lines (a PEM key, for example) are refused: put such a value on one line with `\n` inside double quotes, or ship it another way. The *Build .env* step of `_deploy.yml` applies the same grammar and fails with the line numbers (never the content, the file is a secret) before anything reaches the server. Optional: `TRAEFIK_ENTRYPOINT`, `TRAEFIK_CERTRESOLVER`, `APP_MEMORY_LIMIT` (default `1g`), `APP_WORKERS_AMOUNT`, `PHP_FPM_*` and `PHP_*` (smaller profiles for staging).
+**Format.** One variable per line, as the gateway 2.0 requires: `KEY=value`; `KEY="…"` or `KEY='…'` closed on the same line, optionally followed by `# comment`; an optional `export ` prefix; `KEY` alone, comments and blank lines (a trailing CR is tolerated). `KEY` is `[A-Za-z_][A-Za-z0-9_.-]*`. `KEY: value` and values over several lines (a PEM key, for example) are refused: put such a value on one line with `\n` inside double quotes, or ship it another way. The *Build .env* step of `_deploy.yml` applies the same grammar and fails with the line numbers (never the content, the file is a secret) before anything reaches the server. Optional: `TRAEFIK_ENTRYPOINT`, `TRAEFIK_CERTRESOLVER`, `APP_MEMORY_LIMIT` (default `1g`), `APP_WORKERS_AMOUNT`, `PHP_FPM_*` and `PHP_*` (smaller profiles for staging). **Staging only:** `COMPOSE_PROFILES=mailpit` and `MAILPIT_UI_AUTH` (see *MailPit in staging*).
 
 The `.env` is never executed as shell: the entrypoint reads only the keys it needs (`APP_ENV`, `APP_URL`, `FASTCGI_HTTPS`, `APP_WORKERS_*`, `PHP_*`) and expands nothing.
 
@@ -284,6 +285,54 @@ During the rollout the old code runs for a few seconds on the already migrated s
 1. **Expand**: add columns and tables (nullable or with a default), do not remove or rename anything. Deploy.
 2. The new code starts using the new schema. Deploy.
 3. **Contract**: only in a later release, when no running version uses the old part anymore, remove columns and tables.
+
+### MailPit in staging
+
+Staging can catch every email the app sends in [MailPit](https://mailpit.axllent.org) and show it in a web inbox (a fake mail client), instead of sending it to real people. It is the `mailpit` service of `deploy/compose.yml`, behind the `mailpit` compose profile: it runs **only** where the `.env` sets `COMPOSE_PROFILES=mailpit`. Production never does.
+
+**Setup (once, staging only)**
+
+1. Allow the image and raise the budget on the server (MailPit adds 256 MB and 0.25 CPU; `pr-checks.yml` checks staging with the same numbers):
+
+   ```bash
+   sudo deploy-gateway-add-app <app> staging "app.example.com" ./deploy_key.pub \
+     ALLOWED_IMAGE_REPOS="docker.io/<DOCKERHUB_NAMESPACE>/__KIT_APP_SLUG__ postgres axllent/mailpit" \
+     MAX_APP_MEMORY_MB=4352 MAX_APP_CPUS=5
+   ```
+
+   (Alternatively lower `DB_MEMORY_LIMIT` / `APP_MEMORY_LIMIT` in the staging `.env` and leave the budget alone.)
+
+2. Create the login. A bcrypt line for `htpasswd` is used by both Traefik and MailPit; put it in single quotes so the `$` are kept:
+
+   ```bash
+   htpasswd -nbB -C 12 <user> '<a long random password>'
+   ```
+
+3. Add to the staging `.env` (`DOTENV_STAGING`):
+
+   ```
+   COMPOSE_PROFILES=mailpit
+   MAILPIT_UI_AUTH='<user>:$2y$12$…'
+   MAIL_MAILER=smtp
+   MAIL_HOST=mailpit
+   MAIL_PORT=1025
+   MAIL_USERNAME=null
+   MAIL_PASSWORD=null
+   MAIL_SCHEME=null
+   ```
+
+4. Deploy. The inbox is at `https://<APP_HOST>/mailpit`.
+
+**How it is protected**
+
+- Reached only through Traefik, on the app's own host and certificate, under `/mailpit`: no published ports, no extra DNS record or host to allow.
+- Two logins with the same credentials: Traefik `basicauth` in front, and MailPit's own `MP_UI_AUTH` behind it. If `MAILPIT_UI_AUTH` is empty Traefik refuses the middleware and drops the router: the inbox is not published (it is never open by omission).
+- Rate limit (10 req/s, burst 30) against password guessing, plus security headers (no framing, no sniffing, no referrer, HSTS, `no-store`, `noindex`).
+- SMTP (port 1025) lives on the `mail` network, `internal: true` and shared only with `app`: it cannot be reached from the internet, from other apps or from `db`, and MailPit has no internet access (remote CSS/fonts are blocked as well).
+- The container runs as a non-root user, with a read-only filesystem, no capabilities and tight memory, CPU and process limits.
+- Messages are kept in memory-backed storage (up to 200 messages / 96 MB, oldest dropped first) and are lost when the container is recreated. That is deliberate: staging mail is disposable.
+
+The password is as strong as you make it: use a long random one, keep it in the password manager, and rotate it by changing `MAILPIT_UI_AUTH` and deploying again. To turn MailPit off, remove `COMPOSE_PROFILES` from the `.env` and set the real `MAIL_*` values; the next deploy leaves the service stopped (an orphan container is not removed automatically: `docker compose rm -sf mailpit` in `state/`).
 
 ### Adding the `www` redirect
 
@@ -356,7 +405,7 @@ Migrations run **before** the rollout and never in the entrypoint: if a migratio
 
 - **Parsing**: the file is parsed by a pinned `yq` and compose only reads the result. `include` and `extends` (in any spelling) and YAML tags such as `!!binary`, `!reset` or `!override` are rejected, and so is a multi-document file.
 - **Services**: the keys are an *allow-list* (no `privileged`, `cap_add`, `ports`, `network_mode`, `build`, `container_name`, `ulimits`, …). Every service needs `security_opt: [no-new-privileges:true]`, `cap_drop` including `NET_RAW`, and `mem_limit`, `cpus` and `pids_limit` within the ceilings of `deploy.conf` (`MAX_SERVICE_MEMORY_MB`, `MAX_SERVICE_CPUS`, `MAX_SERVICE_PIDS`); `memswap_limit`, if set, between `mem_limit` and twice that. `restart` is `unless-stopped`, healthcheck intervals are at least 1 s and `stop_grace_period` at most 15 minutes.
-- **App budget**: at most `MAX_SERVICES` services and `MAX_NETWORKS` private networks (the implicit `default` counts, the proxy network does not), and the sums of `mem_limit`, `cpus` and `pids_limit` within `MAX_APP_MEMORY_MB`, `MAX_APP_CPUS` and `MAX_APP_PIDS`, with `app` counted **three times** (the rollout runs the old and the new container side by side, `migrate` a one-off copy). The starter kit's compose file is exactly at the default: `app` 1 GB × 3 + `db` 1 GB = 4096 MB, `cpus` (1 × 3 + 1) = 4, `pids_limit` 512 × 3 + 256 = 1792, two private networks.
+- **App budget**: at most `MAX_SERVICES` services and `MAX_NETWORKS` private networks (the implicit `default` counts, the proxy network does not), and the sums of `mem_limit`, `cpus` and `pids_limit` within `MAX_APP_MEMORY_MB`, `MAX_APP_CPUS` and `MAX_APP_PIDS`, with `app` counted **three times** (the rollout runs the old and the new container side by side, `migrate` a one-off copy). The starter kit's compose file is exactly at the default: `app` 1 GB × 3 + `db` 1 GB = 4096 MB, `cpus` (1 × 3 + 1) = 4, `pids_limit` 512 × 3 + 256 = 1792, three private networks (`default`, `backend`, `mail`). In staging, with the `mailpit` profile on, the sum is 4352 MB, 4.25 CPUs and 1856 pids: raise `MAX_APP_MEMORY_MB` and `MAX_APP_CPUS` there (see *MailPit in staging*).
 - **Images**: every `image:` and the repository of `IMAGE_REF` must be in `ALLOWED_IMAGE_REPOS`, and every `image:` is **pinned by digest** (`name@sha256:…`, or `name:tag@sha256:…`: Renovate keeps tag and digest together). The image must not carry `traefik.*` or `com.docker.compose.*` labels: the server inspects it after the pull, and `_image.yml` checks it right after the build. A digest inside an allowed repository is whatever the pipeline pushed there, so keep push rights to the registry in CI only.
 - **Mounts, volumes**: the **only** bind mount is `./.env`, read-only (a wider rule would let a container plant a symlink in the state directory and have the next deploy mount any host path); volumes are named `<id>-<env>_…` and cannot use `driver` or `driver_opts`.
 - **Networks**: the only external network is the app's own proxy network, `traefik-<id>-<env>` (`traefik-${COMPOSE_PROJECT_NAME}` in the compose file), which `deploy-gateway-add-app` creates; `traefik.docker.network` must be that one. The others must be `<id>-<env>_…`.
