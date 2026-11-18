@@ -28,7 +28,8 @@ RUN apt-get update && \
     pngquant \
     gifsicle \
     webp && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
+    rm -f /var/www/html/index.nginx-debian.html
 
 # pg_dump (backups, schema dumps) refuses to dump a server newer than itself, and the Debian repo ships
 # an older client than the database: take it from the PostgreSQL repo and keep the major in step with
@@ -69,6 +70,19 @@ COPY . .
 COPY --from=vendor /var/www/html/vendor ./vendor
 
 RUN npm run build
+
+# ========================
+# 3b. CODE
+# ========================
+# The application code as it ships. The assets stage needs the frontend sources and tooling
+# (package.json, vite.config.js, resources/js, resources/css) and gets them from the build context, but
+# the runtime image has no use for them: the compiled result is public/build. Pruning here, in a stage of
+# its own, keeps them out of every layer of the final image (a `rm` after the COPY would only hide them).
+# docker/ is not needed either: its files are copied from the build context where they are used.
+FROM base AS code
+
+COPY . .
+RUN rm -rf docker package.json package-lock.json vite.config.js resources/js resources/css
 
 # ========================
 # 4. WEB COMMON
@@ -132,10 +146,8 @@ RUN mkdir -p /var/www/.cache /var/www/.npm /var/www/.config/psysh && \
 
 COPY --from=vendor /var/www/html/vendor ./vendor
 COPY --from=assets /var/www/html/public/build ./public/build
-# Copy app code
-COPY . .
-# Remove the docker folder as its not needed in non-deploy envs
-RUN rm -rf ./docker
+# Copy app code (already pruned of the frontend sources and of docker/, see the code stage)
+COPY --from=code /var/www/html ./
 
 # bash as default with colors and aliases
 RUN usermod -s /bin/bash www-data && \
@@ -160,7 +172,15 @@ FROM web-common AS web-production
 
 # The code stays owned by root: a compromised app (www-data) must not be able to rewrite what the
 # root entrypoint executes at the next start. www-data owns only the writable paths.
-RUN chown -R www-data:www-data storage bootstrap/cache /var/www/.cache /var/www/.npm /var/www/.config && \
+# The base php image creates /var/www/html as www-data with mode 1777: without resetting it, anyone in
+# the container could drop or replace files in the root of the code (public/ and artisan included).
+# The same pass strips group/other write from the copied code, whatever the mode it had on the
+# machine that built the image. The CI of the image (.github/scripts/check-image.sh) enforces it.
+RUN chown root:root /var/www/html && \
+    chmod 755 /var/www/html && \
+    find /var/www/html -mindepth 1 \( -path /var/www/html/storage -o -path /var/www/html/bootstrap/cache \) -prune -o \
+        ! -type l -exec chmod go-w {} + && \
+    chown -R www-data:www-data storage bootstrap/cache /var/www/.cache /var/www/.npm /var/www/.config && \
     ln -s ../storage/app/public public/storage
 
 # ========================
