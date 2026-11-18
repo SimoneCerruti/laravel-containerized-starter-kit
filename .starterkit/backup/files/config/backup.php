@@ -15,6 +15,12 @@ use Spatie\Backup\Tasks\Monitor\HealthChecks\MaximumStorageInMegabytes;
 
 return [
 
+    /*
+     * Master switch read by the scheduler: set BACKUP_ENABLED=false (for example in staging) to skip
+     * backup:run, backup:clean and backup:monitor.
+     */
+    'enabled' => (bool) env('BACKUP_ENABLED', true),
+
     'backup' => [
         /*
          * The name of this application. You can use this name to monitor
