@@ -6,6 +6,7 @@ declare(strict_types=1);
  * Users created by an admin must choose their own password: `password_changed_at` stays null until
  * they do, and `EnsurePasswordIsChanged` redirects them to the profile page meanwhile.
  * The factory creates users with the password already changed; `withInitialPassword()` resets it.
+ * `CreateUser` (`users:create`) stamps it, since the first administrator chooses their own password.
  */
 return [
     'fragments' => [
@@ -19,6 +20,9 @@ return [
         'database/factories/UserFactory.php' => [
             'factory-definition' => '\'password_changed_at\' => now(),',
             'factory-states' => "public function withInitialPassword(): static {\n    return \$this->state(fn (array \$attributes): array => [\n        'password_changed_at' => null,\n    ]);\n}",
+        ],
+        'app/Actions/CreateUser.php' => [
+            'create-user' => '$user->forceFill([\'password_changed_at\' => now()])->save();',
         ],
         'tests/ArchTest.php' => [
             'arch-strict-ignores' => "'App\\Filament\\Pages\\EditProfile',",

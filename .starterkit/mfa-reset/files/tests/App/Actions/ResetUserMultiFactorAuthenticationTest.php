@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Actions\ResetUserMultiFactorAuthentication;
 use App\Models\User;
 
+// @kit:mfa-reset-test-imports
+
 it('removes every multi-factor method from the user', function (): void {
     $user = User::factory()->withEmailAuthentication()->create(['app_authentication_secret' => 'SECRET', 'app_authentication_recovery_codes' => ['code']]);
 
@@ -15,3 +17,5 @@ it('removes every multi-factor method from the user', function (): void {
         ->app_authentication_recovery_codes->toBeNull()
         ->has_email_authentication->toBeFalse();
 });
+
+// @kit:mfa-reset-audit-tests

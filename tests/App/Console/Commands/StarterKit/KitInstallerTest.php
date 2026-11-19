@@ -359,3 +359,143 @@ PHP);
             ->toThrow(RuntimeException::class, 'Command failed: composer config name simonecerruti/a');
     });
 });
+
+describe('ai-tooling module', function (): void {
+    test('clears the WSL variables before boost:update so .mcp.json keeps the plain php command', function (): void {
+        $project = createProjectFixture(['composer.json' => '{}', 'docker-compose.local.yml' => "environment:\n    # @kit:compose-environment\n"]);
+        copyShippedModuleToProject($project, 'ai-tooling');
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api', 'ai_tooling' => true]));
+
+        $composer = json_decode((string) file_get_contents($project.'/composer.json'), true);
+        $script = $composer['scripts']['ai:update'];
+
+        expect($script)->toContain('@putenv WSL_DISTRO_NAME=', '@putenv IS_WSL=')
+            ->and(array_search('@putenv IS_WSL=', $script, true))->toBeLessThan(array_search('@php artisan boost:update --ansi', $script, true))
+            ->and($composer['scripts']['post-update-cmd'])->toContain('@composer ai:update');
+    });
+});
+
+describe('cloudflare module', function (): void {
+    function installCloudflareFixture(bool $cloudflare): string {
+        $project = createProjectFixture(['docker/Dockerfile' => "FROM base\n# @kit:web-production\n"]);
+        copyShippedModuleToProject($project, 'cloudflare');
+        copyRepositoryFileToProject($project, 'docker/scripts/entrypoint.sh');
+        copyRepositoryFileToProject($project, 'bootstrap/app.php');
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api', 'cloudflare' => $cloudflare]));
+
+        return $project;
+    }
+
+    test('replaces the default of REAL_IP_HEADER instead of adding a second line', function (): void {
+        $entrypoint = file_get_contents(installCloudflareFixture(true).'/docker/scripts/entrypoint.sh');
+
+        expect(substr_count($entrypoint, 'REAL_IP_HEADER='))->toBe(1)
+            ->and($entrypoint)->toContain('export REAL_IP_HEADER=${REAL_IP_HEADER:-CF-Connecting-IP}')
+            ->not->toContain('X-Forwarded-For')
+            ->toContain('cloudflare-ips.sh');
+    });
+
+    test('keeps the generic default when the module is off', function (): void {
+        $entrypoint = file_get_contents(installCloudflareFixture(false).'/docker/scripts/entrypoint.sh');
+
+        expect(substr_count($entrypoint, 'REAL_IP_HEADER='))->toBe(1)
+            ->and($entrypoint)->toContain('export REAL_IP_HEADER=${REAL_IP_HEADER:-X-Forwarded-For}')
+            ->not->toContain('CF-Connecting-IP')
+            ->not->toContain('cloudflare-ips.sh');
+    });
+
+    test('trusts only the Docker proxy ranges instead of every sender', function (): void {
+        $bootstrap = file_get_contents(installCloudflareFixture(true).'/bootstrap/app.php');
+
+        $nginx_ranges = file_get_contents(dirname(__DIR__, 5).'/docker/configs/nginx-real-ip.conf');
+
+        expect($bootstrap)->toContain("trustProxies(at: ['172.16.0.0/12', '10.0.0.0/8'])")
+            ->not->toContain("at: '*'")
+            ->and($nginx_ranges)->toContain('set_real_ip_from 172.16.0.0/12;')
+            ->toContain('set_real_ip_from 10.0.0.0/8;');
+    });
+
+    test('does not trust any proxy when the module is off', function (): void {
+        expect(file_get_contents(installCloudflareFixture(false).'/bootstrap/app.php'))->not->toContain('trustProxies');
+    });
+});
+
+describe('mfa-reset module', function (): void {
+    /**
+     * @param  list<string>  $modules
+     */
+    function installMfaResetFixture(array $modules): string {
+        $project = createProjectFixture();
+
+        foreach (['mfa-reset', 'login-audit'] as $module) {
+            copyShippedModuleToProject($project, $module);
+        }
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api', 'modules' => $modules]));
+
+        return $project;
+    }
+
+    test('logs the reset and adds its event when login-audit is installed too', function (): void {
+        $project = installMfaResetFixture(['mfa-reset', 'login-audit']);
+
+        expect(file_get_contents($project.'/app/Enums/ActivityEvent.php'))->toContain("case MFA_RESET = 'mfa_reset';")
+            ->not->toContain('@kit:')
+            ->and(file_get_contents($project.'/app/Actions/ResetUserMultiFactorAuthentication.php'))
+            ->toContain('use App\Enums\ActivityEvent;')
+            ->toContain('->event(ActivityEvent::MFA_RESET->value)')
+            ->and(file_get_contents($project.'/tests/App/Enums/ActivityEventTest.php'))->toContain("'mfa_reset',")
+            ->and(file_get_contents($project.'/tests/App/Actions/ResetUserMultiFactorAuthenticationTest.php'))->toContain('records the reset in the activity log');
+    });
+
+    test('resets without logging anything when login-audit is not installed', function (): void {
+        $project = installMfaResetFixture(['mfa-reset']);
+
+        expect(file_get_contents($project.'/app/Actions/ResetUserMultiFactorAuthentication.php'))
+            ->toContain('DB::transaction')
+            ->not->toContain('ActivityEvent')
+            ->not->toContain('activity(')
+            ->not->toContain('@kit:')
+            ->and($project.'/app/Enums/ActivityEvent.php')->not->toBeFile()
+            ->and(file_get_contents($project.'/tests/App/Actions/ResetUserMultiFactorAuthenticationTest.php'))->not->toContain('activity log');
+    });
+});
+
+describe('localized-routes module', function (): void {
+    function installLocalizedRoutesFixture(bool $localized): string {
+        $project = createProjectFixture();
+        copyShippedModuleToProject($project, 'localized-routes');
+
+        foreach (['routes/web.php', 'bootstrap/app.php', 'tests/Pest.php'] as $file) {
+            copyRepositoryFileToProject($project, $file);
+        }
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'site', 'modules' => $localized ? ['localized-routes'] : []]));
+
+        return $project;
+    }
+
+    test('wraps the public routes in the localized group and names the home route', function (): void {
+        $project = installLocalizedRoutesFixture(true);
+        $routes = file_get_contents($project.'/routes/web.php');
+
+        expect($routes)->toContain('use Mcamara\LaravelLocalization\Facades\LaravelLocalization;')
+            ->toContain('Route::prefix(LaravelLocalization::setLocale())')
+            ->toContain("->middleware(['localeSessionRedirect', 'localizationRedirect', 'localize'])")
+            ->toContain("->name('home')")
+            ->and(file_get_contents($project.'/bootstrap/app.php'))->toContain("'localize' => LaravelLocalizationRoutes::class")
+            ->and(file_get_contents($project.'/tests/Pest.php'))->toContain('function getLocalizedPublicRouteNames(): array')
+            ->toContain('function loadRoutesForLocale(string $locale): void')
+            ->and($project.'/tests/Routes/LocalizedRoutesTest.php')->toBeFile()
+            ->and($project.'/config/laravellocalization.php')->toBeFile();
+    });
+
+    test('leaves the routes alone when the module is off', function (): void {
+        $project = installLocalizedRoutesFixture(false);
+
+        expect(file_get_contents($project.'/routes/web.php'))->not->toContain('LaravelLocalization')
+            ->and($project.'/tests/Routes/LocalizedRoutesTest.php')->not->toBeFile();
+    });
+});

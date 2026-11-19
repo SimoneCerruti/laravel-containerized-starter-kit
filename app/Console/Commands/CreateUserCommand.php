@@ -10,6 +10,7 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rules\Password;
 
 use function Laravel\Prompts\password;
 use function Laravel\Prompts\text;
@@ -17,8 +18,6 @@ use function Laravel\Prompts\text;
 #[Signature('users:create {--first-name= : First name} {--last-name= : Last name} {--email= : Email address} {--password= : Password (visible in the process list, prefer the prompt on shared machines)}')]
 #[Description('Create a user with a verified email, e.g. the first administrator of an environment')]
 final class CreateUserCommand extends Command {
-    private const array PASSWORD_RULES = ['required', 'min:12'];
-
     public function handle(): int {
         $first_name = (string) ($this->option('first-name') ?? text('First name', required: true));
         $last_name = (string) ($this->option('last-name') ?? text('Last name', required: true));
@@ -30,11 +29,11 @@ final class CreateUserCommand extends Command {
             return self::FAILURE;
         }
 
-        $password = (string) ($this->option('password') ?? password('Password', required: true, validate: ['password' => self::PASSWORD_RULES]));
+        $password = (string) ($this->option('password') ?? password('Password', required: true, validate: ['password' => $this->passwordRules()]));
 
         $validator = Validator::make(
             ['first_name' => $first_name, 'last_name' => $last_name, 'email' => $email, 'password' => $password],
-            ['first_name' => 'required', 'last_name' => 'required', 'email' => 'required|email', 'password' => self::PASSWORD_RULES],
+            ['first_name' => 'required', 'last_name' => 'required', 'email' => 'required|email', 'password' => $this->passwordRules()],
         );
 
         if ($validator->fails()) {
@@ -48,5 +47,12 @@ final class CreateUserCommand extends Command {
         $this->components->info("User {$user->email} created.");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * @return list<string|Password>
+     */
+    private function passwordRules(): array {
+        return ['required', Password::default()];
     }
 }

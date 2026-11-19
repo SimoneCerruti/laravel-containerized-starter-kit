@@ -8,4 +8,5 @@ enum ActivityEvent: string {
     case LOGIN = 'login';
     case LOGIN_FAILED = 'login_failed';
     case LOGOUT = 'logout';
+    // @kit:activity-events
 }

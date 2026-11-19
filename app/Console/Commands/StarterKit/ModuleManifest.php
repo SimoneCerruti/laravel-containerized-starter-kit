@@ -13,6 +13,9 @@ use function Safe\file_get_contents;
  *
  * Fragment values are either the code itself or the path, relative to the module folder, of a
  * file holding it: the manifest resolves both to the code.
+ *
+ * A `with` entry (`'with' => ['login-audit' => [...]]`) is a partial manifest merged, like a variant,
+ * only when that other module is active: the way a module extends what another module ships.
  */
 final readonly class ModuleManifest {
     /**
@@ -47,8 +50,9 @@ final readonly class ModuleManifest {
 
     /**
      * @param  list<string>  $variants
+     * @param  list<string>  $active_modules  the modules being installed, to pick the `with` entries
      */
-    public static function load(string $module_path, array $variants = []): self {
+    public static function load(string $module_path, array $variants = [], array $active_modules = []): self {
         $name = basename($module_path);
         $manifest_file = $module_path.'/module.php';
         $definition = is_file($manifest_file) ? require $manifest_file : [];
@@ -65,6 +69,14 @@ final readonly class ModuleManifest {
             }
 
             $definition = self::merge($definition, (array) $available_variants[$variant]);
+        }
+
+        $companions = \is_array($definition['with'] ?? null) ? $definition['with'] : [];
+
+        foreach ($companions as $module => $extra) {
+            if (\in_array($module, $active_modules, true)) {
+                $definition = self::merge($definition, (array) $extra);
+            }
         }
 
         return new self(

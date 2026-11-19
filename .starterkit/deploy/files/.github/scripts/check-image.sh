@@ -95,7 +95,7 @@ docker exec "$database" pg_isready -q -d app -U app || { fail "the test database
 # The entrypoint's own work (nginx, supervisord) is not needed: only the cache rebuild it runs.
 first_start='
     /rebuild-caches.sh
-    php -r "\$config = require \"/var/www/html/bootstrap/cache/config.php\"; echo \$config[\"cache\"][\"default\"], PHP_EOL;"
+    php -r "require \"/var/www/html/vendor/autoload.php\"; \$config = require \"/var/www/html/bootstrap/cache/config.php\"; echo \$config[\"cache\"][\"default\"], PHP_EOL;"
 '
 if ! cache_store=$(docker run --rm --network "$network" --entrypoint bash \
     -e APP_ENV=production -e APP_DEBUG=false -e APP_URL=https://app.example.com \

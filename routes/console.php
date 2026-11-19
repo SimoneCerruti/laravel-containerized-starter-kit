@@ -2,11 +2,15 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Schedule;
+
 // @kit:console-imports
 
 Schedule::timezone(config()->string('app.actual_timezone'))
     ->withoutOverlapping()
     ->group(function (): void {
+        Schedule::command('activitylog:clean')->dailyAt('02:00');
+
         // @kit:schedule
     });
 
