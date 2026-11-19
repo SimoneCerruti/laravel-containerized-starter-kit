@@ -6,6 +6,7 @@ use App\Enums\Locale;
 use Illuminate\Support\Facades\Route;
 
 use function Pest\Laravel\get;
+use function Safe\putenv;
 
 afterEach(function (): void {
     putenv('ROUTING_LOCALE');

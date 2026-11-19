@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use function Pest\Laravel\get;
+use function Safe\putenv;
 
 describe('public page', function (): void {
     test('carries the security headers', function (): void {
