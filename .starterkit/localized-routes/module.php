@@ -33,7 +33,7 @@ PHP,
             'middleware' => "\$middleware->alias([\n    'localize' => LaravelLocalizationRoutes::class,\n    'localizationRedirect' => LaravelLocalizationRedirectFilter::class,\n    'localeSessionRedirect' => LocaleSessionRedirect::class,\n]);",
         ],
         'tests/Pest.php' => [
-            'pest-imports' => "use Illuminate\\Routing\\Route as LocalizedRoute;\nuse Illuminate\\Support\\Facades\\Route;\nuse function Safe\\putenv;",
+            'pest-imports' => "use Illuminate\\Routing\\Route as LocalizedRoute;\nuse Illuminate\\Routing\\RouteCollection;\nuse Illuminate\\Support\\Facades\\Route;\nuse function Safe\\putenv;",
             'pest-helpers' => 'fragments/pest-helpers.php',
         ],
     ],

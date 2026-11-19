@@ -471,6 +471,7 @@ describe('localized-routes module', function (): void {
             ->toContain("->name('home')")
             ->and(file_get_contents($project.'/bootstrap/app.php'))->toContain("'localize' => LaravelLocalizationRoutes::class")
             ->and(file_get_contents($project.'/tests/Pest.php'))->toContain('function getLocalizedPublicRouteNames(): array')
+            ->toContain('function loadRoutesForLocale(string $locale): void')
             ->and($project.'/tests/Routes/LocalizedRoutesTest.php')->toBeFile()
             ->and($project.'/config/laravellocalization.php')->toBeFile();
     });

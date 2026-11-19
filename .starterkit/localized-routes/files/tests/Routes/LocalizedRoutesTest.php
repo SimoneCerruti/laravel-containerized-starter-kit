@@ -13,7 +13,7 @@ afterEach(function (): void {
 });
 
 it('serves every named public route under every supported locale', function (Locale $locale): void {
-    bootApplicationForLocale($locale->value);
+    loadRoutesForLocale($locale->value);
 
     $names = getLocalizedPublicRouteNames();
 

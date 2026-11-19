@@ -1,12 +1,15 @@
 /**
- * Boots the application as if the first URL segment were the locale: the localized route group
- * reads it while the routes are registered, so one boot serves one locale.
+ * Registers the web routes again as if the first URL segment were the locale: the localized route
+ * group reads it while the routes are registered, so one registration serves one locale.
  */
-function bootApplicationForLocale(string $locale): void
+function loadRoutesForLocale(string $locale): void
 {
     putenv("ROUTING_LOCALE={$locale}");
 
-    test()->refreshApplication();
+    Route::setRoutes(new RouteCollection);
+    Route::middleware('web')->group(base_path('routes/web.php'));
+    Route::getRoutes()->refreshNameLookups();
+    Route::getRoutes()->refreshActionLookups();
 }
 
 /**
