@@ -446,3 +446,39 @@ describe('mfa-reset module', function (): void {
             ->and(file_get_contents($project.'/tests/App/Actions/ResetUserMultiFactorAuthenticationTest.php'))->not->toContain('activity log');
     });
 });
+
+describe('localized-routes module', function (): void {
+    function installLocalizedRoutesFixture(bool $localized): string {
+        $project = createProjectFixture();
+        copyShippedModuleToProject($project, 'localized-routes');
+
+        foreach (['routes/web.php', 'bootstrap/app.php', 'tests/Pest.php'] as $file) {
+            copyRepositoryFileToProject($project, $file);
+        }
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'site', 'modules' => $localized ? ['localized-routes'] : []]));
+
+        return $project;
+    }
+
+    test('wraps the public routes in the localized group and names the home route', function (): void {
+        $project = installLocalizedRoutesFixture(true);
+        $routes = file_get_contents($project.'/routes/web.php');
+
+        expect($routes)->toContain('use Mcamara\LaravelLocalization\Facades\LaravelLocalization;')
+            ->toContain('Route::prefix(LaravelLocalization::setLocale())')
+            ->toContain("->middleware(['localeSessionRedirect', 'localizationRedirect', 'localize'])")
+            ->toContain("->name('home')")
+            ->and(file_get_contents($project.'/bootstrap/app.php'))->toContain("'localize' => LaravelLocalizationRoutes::class")
+            ->and(file_get_contents($project.'/tests/Pest.php'))->toContain('function getLocalizedPublicRouteNames(): array')
+            ->and($project.'/tests/Routes/LocalizedRoutesTest.php')->toBeFile()
+            ->and($project.'/config/laravellocalization.php')->toBeFile();
+    });
+
+    test('leaves the routes alone when the module is off', function (): void {
+        $project = installLocalizedRoutesFixture(false);
+
+        expect(file_get_contents($project.'/routes/web.php'))->not->toContain('LaravelLocalization')
+            ->and($project.'/tests/Routes/LocalizedRoutesTest.php')->not->toBeFile();
+    });
+});
