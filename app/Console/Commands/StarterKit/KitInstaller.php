@@ -129,7 +129,7 @@ final class KitInstaller {
         }
 
         return array_map(
-            fn (string $module): ModuleManifest => ModuleManifest::load($this->modulePath($module), $answers->variants()[$module] ?? []),
+            fn (string $module): ModuleManifest => ModuleManifest::load($this->modulePath($module), $answers->variants()[$module] ?? [], $active),
             $active,
         );
     }

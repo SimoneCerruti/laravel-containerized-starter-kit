@@ -31,6 +31,19 @@ function allVariantsOf(string $module_path): array {
 }
 
 /**
+ * @return list<string> the modules a manifest extends through its `with` entries
+ */
+function companionModulesOf(string $module_path): array {
+    if (! is_file("{$module_path}/module.php")) {
+        return [];
+    }
+
+    $manifest = require "{$module_path}/module.php";
+
+    return array_map(strval(...), array_keys($manifest['with'] ?? []));
+}
+
+/**
  * Everything a marker can live in: the project file, module stubs for the same path and every fragment.
  */
 function markerSources(string $target): string {
@@ -54,13 +67,13 @@ function markerSources(string $target): string {
 }
 
 it('loads every shipped manifest with all of its variants', function (string $module_path): void {
-    $manifest = ModuleManifest::load($module_path, allVariantsOf($module_path));
+    $manifest = ModuleManifest::load($module_path, allVariantsOf($module_path), companionModulesOf($module_path));
 
     expect($manifest->name)->toBe(basename($module_path));
 })->with(fn (): array => shippedModulePaths());
 
 it('only injects fragments into markers that exist', function (string $module_path): void {
-    $manifest = ModuleManifest::load($module_path, allVariantsOf($module_path));
+    $manifest = ModuleManifest::load($module_path, allVariantsOf($module_path), companionModulesOf($module_path));
 
     expect($manifest->name)->toBe(basename($module_path));
 

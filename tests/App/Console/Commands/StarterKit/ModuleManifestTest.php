@@ -96,6 +96,23 @@ PHP);
             ->and(ModuleManifest::load($directory)->require)->toBe(['base/pkg' => '^1.0']);
     });
 
+    test('merges the `with` entry of a module only when that module is active', function (): void {
+        $directory = makeModuleDirectory('demo', <<<'PHP'
+[
+    'fragments' => ['f.php' => ['base' => 'base();']],
+    'with' => ['login-audit' => ['fragments' => ['f.php' => ['base' => 'audit();', 'extra' => 'extra();']], 'env' => ['AUDIT' => '1']]],
+]
+PHP);
+
+        $without = ModuleManifest::load($directory, [], ['core']);
+        $with = ModuleManifest::load($directory, [], ['core', 'login-audit']);
+
+        expect($without->fragments)->toBe(['f.php' => ['base' => 'base();']])
+            ->and($without->env)->toBe([])
+            ->and($with->fragments)->toBe(['f.php' => ['base' => "base();\naudit();", 'extra' => 'extra();']])
+            ->and($with->env)->toBe(['AUDIT' => '1']);
+    });
+
     test('rejects a variant the module does not define', function (): void {
         $directory = makeModuleDirectory('demo', "['variants' => ['x' => []]]");
 

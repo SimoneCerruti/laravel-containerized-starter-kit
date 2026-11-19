@@ -17,3 +17,11 @@ it('resets the multi-factor methods of the user with the given email', function 
 it('fails when the user does not exist', function (): void {
     artisan('users:reset-mfa', ['email' => 'missing@example.com'])->assertFailed();
 });
+
+it('finds the user whatever the case of the email', function (): void {
+    $user = User::factory()->withEmailAuthentication()->create(['email' => 'ada@example.com']);
+
+    artisan('users:reset-mfa', ['email' => 'ADA@Example.COM'])->assertSuccessful();
+
+    expect($user->fresh()->has_email_authentication)->toBeFalse();
+});

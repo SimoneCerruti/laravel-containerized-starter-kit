@@ -405,3 +405,44 @@ describe('cloudflare module', function (): void {
         expect(file_get_contents(installCloudflareFixture(false).'/bootstrap/app.php'))->not->toContain('trustProxies');
     });
 });
+
+describe('mfa-reset module', function (): void {
+    /**
+     * @param  list<string>  $modules
+     */
+    function installMfaResetFixture(array $modules): string {
+        $project = createProjectFixture();
+
+        foreach (['mfa-reset', 'login-audit'] as $module) {
+            copyShippedModuleToProject($project, $module);
+        }
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api', 'modules' => $modules]));
+
+        return $project;
+    }
+
+    test('logs the reset and adds its event when login-audit is installed too', function (): void {
+        $project = installMfaResetFixture(['mfa-reset', 'login-audit']);
+
+        expect(file_get_contents($project.'/app/Enums/ActivityEvent.php'))->toContain("case MFA_RESET = 'mfa_reset';")
+            ->not->toContain('@kit:')
+            ->and(file_get_contents($project.'/app/Actions/ResetUserMultiFactorAuthentication.php'))
+            ->toContain('use App\Enums\ActivityEvent;')
+            ->toContain('->event(ActivityEvent::MFA_RESET->value)')
+            ->and(file_get_contents($project.'/tests/App/Enums/ActivityEventTest.php'))->toContain("'mfa_reset',")
+            ->and(file_get_contents($project.'/tests/App/Actions/ResetUserMultiFactorAuthenticationTest.php'))->toContain('records the reset in the activity log');
+    });
+
+    test('resets without logging anything when login-audit is not installed', function (): void {
+        $project = installMfaResetFixture(['mfa-reset']);
+
+        expect(file_get_contents($project.'/app/Actions/ResetUserMultiFactorAuthentication.php'))
+            ->toContain('DB::transaction')
+            ->not->toContain('ActivityEvent')
+            ->not->toContain('activity(')
+            ->not->toContain('@kit:')
+            ->and($project.'/app/Enums/ActivityEvent.php')->not->toBeFile()
+            ->and(file_get_contents($project.'/tests/App/Actions/ResetUserMultiFactorAuthenticationTest.php'))->not->toContain('activity log');
+    });
+});

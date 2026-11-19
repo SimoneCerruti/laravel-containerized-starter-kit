@@ -14,7 +14,7 @@ use Illuminate\Console\Command;
 #[Description('Remove every multi-factor authentication method from a user')]
 final class ResetUserMultiFactorAuthenticationCommand extends Command {
     public function handle(): int {
-        $user = User::query()->where('email', $this->argument('email'))->first();
+        $user = User::query()->whereRaw('lower(email) = ?', [mb_strtolower((string) $this->argument('email'))])->first();
 
         if (! $user instanceof User) {
             $this->components->error('User not found.');
