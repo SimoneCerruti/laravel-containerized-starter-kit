@@ -359,3 +359,49 @@ PHP);
             ->toThrow(RuntimeException::class, 'Command failed: composer config name simonecerruti/a');
     });
 });
+
+describe('cloudflare module', function (): void {
+    function installCloudflareFixture(bool $cloudflare): string {
+        $project = createProjectFixture(['docker/Dockerfile' => "FROM base\n# @kit:web-production\n"]);
+        copyShippedModuleToProject($project, 'cloudflare');
+        copyRepositoryFileToProject($project, 'docker/scripts/entrypoint.sh');
+        copyRepositoryFileToProject($project, 'bootstrap/app.php');
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api', 'cloudflare' => $cloudflare]));
+
+        return $project;
+    }
+
+    test('replaces the default of REAL_IP_HEADER instead of adding a second line', function (): void {
+        $entrypoint = file_get_contents(installCloudflareFixture(true).'/docker/scripts/entrypoint.sh');
+
+        expect(substr_count($entrypoint, 'REAL_IP_HEADER='))->toBe(1)
+            ->and($entrypoint)->toContain('export REAL_IP_HEADER=${REAL_IP_HEADER:-CF-Connecting-IP}')
+            ->not->toContain('X-Forwarded-For')
+            ->toContain('cloudflare-ips.sh');
+    });
+
+    test('keeps the generic default when the module is off', function (): void {
+        $entrypoint = file_get_contents(installCloudflareFixture(false).'/docker/scripts/entrypoint.sh');
+
+        expect(substr_count($entrypoint, 'REAL_IP_HEADER='))->toBe(1)
+            ->and($entrypoint)->toContain('export REAL_IP_HEADER=${REAL_IP_HEADER:-X-Forwarded-For}')
+            ->not->toContain('CF-Connecting-IP')
+            ->not->toContain('cloudflare-ips.sh');
+    });
+
+    test('trusts only the Docker proxy ranges instead of every sender', function (): void {
+        $bootstrap = file_get_contents(installCloudflareFixture(true).'/bootstrap/app.php');
+
+        $nginx_ranges = file_get_contents(dirname(__DIR__, 5).'/docker/configs/nginx-real-ip.conf');
+
+        expect($bootstrap)->toContain("trustProxies(at: ['172.16.0.0/12', '10.0.0.0/8'])")
+            ->not->toContain("at: '*'")
+            ->and($nginx_ranges)->toContain('set_real_ip_from 172.16.0.0/12;')
+            ->toContain('set_real_ip_from 10.0.0.0/8;');
+    });
+
+    test('does not trust any proxy when the module is off', function (): void {
+        expect(file_get_contents(installCloudflareFixture(false).'/bootstrap/app.php'))->not->toContain('trustProxies');
+    });
+});

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
+use Symfony\Component\Finder\Finder;
 
 use function Safe\chmod;
+use function Safe\file_get_contents;
 use function Safe\file_put_contents;
 use function Safe\json_encode;
 use function Safe\mkdir;
@@ -68,4 +70,26 @@ function fakeProcessesRecordingCommands(): ArrayObject {
     });
 
     return $commands;
+}
+
+/**
+ * Puts the real file of this repository into the fixture project, so a shipped module is installed against it.
+ */
+function copyRepositoryFileToProject(string $project, string $relative_path): void {
+    $destination = $project.'/'.$relative_path;
+
+    if (! is_dir(dirname($destination))) {
+        mkdir(dirname($destination), 0755, true);
+    }
+
+    file_put_contents($destination, file_get_contents(dirname(__DIR__, 5).'/'.$relative_path));
+}
+
+/**
+ * Puts the real manifest and files of a shipped module into the fixture project.
+ */
+function copyShippedModuleToProject(string $project, string $module): void {
+    foreach (Finder::create()->files()->ignoreDotFiles(false)->in(dirname(__DIR__, 5).'/.starterkit/'.$module) as $file) {
+        copyRepositoryFileToProject($project, '.starterkit/'.$module.'/'.$file->getRelativePathname());
+    }
 }
