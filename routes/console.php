@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Schedule;
+
 // @kit:console-imports
 
 Schedule::timezone(config()->string('app.actual_timezone'))
