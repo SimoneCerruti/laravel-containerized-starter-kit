@@ -6,6 +6,8 @@ declare(strict_types=1);
  * AI tooling: Boost guidelines and skills, MCP servers, Claude config. Tokens go to `.env` only
  * (never `.env.example`). When the module is not selected, `when_disabled` removes its files and
  * the Boost package; the compose variables and the composer `ai:update` script are added here.
+ * `ai:update` clears the WSL variables first: under WSL, Boost would rewrite `.mcp.json` with `wsl.exe`
+ * as the command, which only works on the machine of whoever ran it.
  */
 return [
     'env_local' => [
@@ -26,7 +28,12 @@ YAML,
     ],
     'json' => [
         'composer' => [
-            'scripts.ai:update' => ['@php artisan boost:update --ansi', '@php artisan ai:link-hooks --ansi'],
+            'scripts.ai:update' => [
+                '@putenv WSL_DISTRO_NAME=',
+                '@putenv IS_WSL=',
+                '@php artisan boost:update --ansi',
+                '@php artisan ai:link-hooks --ansi',
+            ],
             'scripts.post-update-cmd' => ['@composer ai:update'],
         ],
     ],

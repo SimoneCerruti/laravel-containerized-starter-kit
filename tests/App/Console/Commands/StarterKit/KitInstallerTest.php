@@ -360,6 +360,22 @@ PHP);
     });
 });
 
+describe('ai-tooling module', function (): void {
+    test('clears the WSL variables before boost:update so .mcp.json keeps the plain php command', function (): void {
+        $project = createProjectFixture(['composer.json' => '{}', 'docker-compose.local.yml' => "environment:\n    # @kit:compose-environment\n"]);
+        copyShippedModuleToProject($project, 'ai-tooling');
+
+        (new KitInstaller($project))->install(KitAnswers::fromArray(['app_name' => 'A', 'app_type' => 'api', 'ai_tooling' => true]));
+
+        $composer = json_decode((string) file_get_contents($project.'/composer.json'), true);
+        $script = $composer['scripts']['ai:update'];
+
+        expect($script)->toContain('@putenv WSL_DISTRO_NAME=', '@putenv IS_WSL=')
+            ->and(array_search('@putenv IS_WSL=', $script, true))->toBeLessThan(array_search('@php artisan boost:update --ansi', $script, true))
+            ->and($composer['scripts']['post-update-cmd'])->toContain('@composer ai:update');
+    });
+});
+
 describe('cloudflare module', function (): void {
     function installCloudflareFixture(bool $cloudflare): string {
         $project = createProjectFixture(['docker/Dockerfile' => "FROM base\n# @kit:web-production\n"]);
