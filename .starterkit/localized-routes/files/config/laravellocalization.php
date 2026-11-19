@@ -13,7 +13,7 @@ return [
         ->mapWithKeys(fn (Locale $locale): array => [
             $locale->value => [
                 'name' => ucfirst($locale->name),
-                'script' => 'Latn',
+                'script' => $locale->script(),
                 'native' => ucfirst($locale->name),
                 'regional' => $locale->value.'_'.mb_strtoupper($locale->value),
             ],
