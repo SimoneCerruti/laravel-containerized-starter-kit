@@ -58,7 +58,7 @@ jobs:
           ref: production
           fetch-depth: 0
 
-      # Deploy only tags whose commit is on production (CONTRIBUTING §9). A commit on production but not on staging
+      # Deploy only tags whose commit is on production (deploy/README.md, Branches). A commit on production but not on staging
       # can only be a hotfix: it is the one case where production may build its own image
       - name: Tag is on production
         id: commit

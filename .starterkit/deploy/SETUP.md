@@ -12,11 +12,11 @@ The code is built in CI and rolled out to the shared VPS (Traefik + Docker Compo
 | 4 | Traefik: `websecure` entrypoint, `cloudflare` certresolver, container named `traefik` | after recreating it: `sudo deploy-gateway-connect-traefik` | *Server setup*, step 5 |
 | 5 | Known hosts | `ssh-keyscan -H -t ed25519 <host>`, fingerprint checked on the server | *`DEPLOY_KNOWN_HOSTS`* |
 | 6 | Docker Hub | private repo `<DOCKERHUB_NAMESPACE>/__KIT_APP_SLUG__`, one read-write and one read-only token | *`DOCKERHUB_*`* |
-| 7 | GitHub App for release and hotfix | create, install on the repo, allow it to bypass the branch protection | *`RELEASE_APP_ID`, `RELEASE_APP_PRIVATE_KEY`* |
+| 7 | GitHub App for release and hotfix | create, install on the repo, allow it to bypass the protection of `staging` and `production` | *`RELEASE_APP_ID`, `RELEASE_APP_PRIVATE_KEY`* |
 | 8 | GitHub secrets | the table below | *How to get each secret* |
 | 9 | DNS | point `APP_HOST` of each environment to the server | — |
 | 10 | `.env` of each environment | `APP_ENV=production`, `APP_DEBUG=false`, `LOG_LEVEL`, `MAIL_*`, DB credentials; one `KEY=value` per line | *`DOTENV_*`* |
-| 11 | Branch protection | protect `main`, `staging`, `production`; require the `pr-checks.yml` checks (incl. `compose-policy`); enable auto-merge | *GitHub setup* |
+| 11 | Branches | create `staging` and `production`, set `staging` as the default branch (there is no `main`); protect both and require the `pr-checks.yml` checks (incl. `compose-policy`); enable auto-merge | *GitHub setup* |
 | 12 | First start | `docker compose exec app php artisan users:create` on the server | *First start* |
 | 13 | Uptime | monitor `https://<APP_HOST>/up` from outside (e.g. [cron-job.org](https://cron-job.org/en/)) | *Monitoring* |
 

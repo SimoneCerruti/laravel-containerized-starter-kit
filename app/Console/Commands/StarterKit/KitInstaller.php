@@ -289,7 +289,7 @@ final class KitInstaller {
             $url = "https://github.com/{$answers->gh_repository}";
 
             $this->run(['composer', 'config', 'homepage', $url]);
-            $this->mergeJsonEntries('composer.json', ['support' => ['issues' => "{$url}/issues", 'source' => "{$url}/tree/main"]]);
+            $this->mergeJsonEntries('composer.json', ['support' => ['issues' => "{$url}/issues", 'source' => $url]]);
             $this->run(['npm', 'pkg', 'set', "homepage={$url}", "repository={$url}"]);
         }
 

@@ -104,7 +104,7 @@ jobs:
           NOTE: ${{ steps.sync.outputs.note }}
         run: |
           title="chore(sync): bring $TAG into staging"
-          body=$(printf 'Sync after hotfix %s (CONTRIBUTING §6).\n\n%s\n\nMerges **only with a merge commit**: auto-merge is set, approving is enough.' "$TAG" "$NOTE")
+          body=$(printf 'Sync after hotfix %s (deploy/README.md, Branches).\n\n%s\n\nMerges **only with a merge commit**: auto-merge is set, approving is enough.' "$TAG" "$NOTE")
 
           if gh pr view "$BRANCH" --json state --jq .state 2>/dev/null | grep -q OPEN; then
             gh pr comment "$BRANCH" --body "Branch rebuilt on the current staging. $NOTE"

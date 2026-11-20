@@ -217,7 +217,7 @@ The *Release* and *Hotfix* workflows push commits, tags and branches to the prot
 
    Then delete the downloaded file. GitHub keeps no copy: if you lose the secret, generate a new key (and delete the old one on the app page).
 7. **Install the app** on the repository: in the app's left menu, *Install App* → pick the account → *Only select repositories* → this repository → *Install*.
-8. **Let it through the branch protection**: in the rulesets (or branch protection rules) of `main`, `staging` and `production`, add the app to the *bypass list* / *Allow specified actors to bypass required pull requests*, so it can fast-forward the branches and push the tags. Without this the release stops at the push with a protection error.
+8. **Let it through the branch protection**: in the rulesets (or branch protection rules) of `staging` and `production`, add the app to the *bypass list* / *Allow specified actors to bypass required pull requests*, so it can fast-forward the branches and push the tags. Without this the release stops at the push with a protection error.
 9. In *Settings → General → Pull Requests* enable **Allow auto-merge**: the hotfix workflow uses `gh pr merge --auto`.
 
 #### `GATEWAY_REPOSITORY`, `GATEWAY_REPO_TOKEN`
@@ -246,7 +246,11 @@ The `.env` of each environment must contain at least: `APP_NAME`, `APP_ENV`, `AP
 
 The `.env` is never executed as shell: the entrypoint reads only the keys it needs (`APP_ENV`, `APP_URL`, `FASTCGI_HTTPS`, `APP_WORKERS_*`, `PHP_*`) and expands nothing.
 
-Recommended protections: protected `main`, `staging` and `production` branches, with the `pr-checks.yml` checks required.
+### Branches
+
+There is no `main`. `staging` is the default branch and the target of every pull request; `production` only moves by the *Release* workflow (fast-forward from `staging`) or by a `hotfix/*` pull request, followed by the automatic `sync/<tag>` pull request back into `staging`. Set `staging` as the default branch in *Settings → General*: the scheduled workflows and the Pest TIA baseline run on it.
+
+Recommended protections: protected `staging` and `production` branches, with the `pr-checks.yml` checks required.
 
 ## First start
 
