@@ -6,11 +6,13 @@ use App\Console\Commands\StarterKit\KitAnswers;
 use App\Console\Commands\StarterKit\KitInstaller;
 use Illuminate\Support\Facades\Process;
 
+use function Safe\copy;
 use function Safe\file_get_contents;
 use function Safe\file_put_contents;
 use function Safe\fileperms;
 use function Safe\json_decode;
 use function Safe\json_encode;
+use function Safe\mkdir;
 
 require_once __DIR__.'/ProjectFixture.php';
 
@@ -43,6 +45,36 @@ PHP);
 
         expect(file_get_contents($project.'/app/Models/User.php'))->toBe("<?php\nclass User {\n    use Notifiable;\n    use HasRoles; // my-app\n}\n")
             ->and(file_get_contents($project.'/config/app.txt'))->toBe('driver=new');
+    });
+
+    test('moves the core workflows from main to staging only when the deploy module is active', function (): void {
+        $workflows = [
+            'tia-baseline.yml' => "on:\n  push:\n    branches: [main]\n",
+            'secret-scan.yml' => "on:\n  push:\n    branches: [main]\n",
+            'dependency-audit.yml' => "on:\n  push:\n    branches: [main]\n",
+            'container-scan.yml' => "on:\n  push:\n    branches: [main]\n",
+            'tests.yml' => "# tia-baseline.yml already runs the suite on every push to main.\n",
+        ];
+        $files = [];
+
+        foreach ($workflows as $name => $contents) {
+            $files[".starterkit/core/files/.github/workflows/{$name}"] = $contents;
+        }
+
+        $withoutDeploy = createProjectFixture($files);
+        (new KitInstaller($withoutDeploy))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api']));
+
+        $withDeploy = createProjectFixture([...$files, '.dockerignore' => "# @kit:dockerignore\n"]);
+        mkdir($withDeploy.'/.starterkit/deploy', 0755, true);
+        copy(base_path('.starterkit/deploy/module.php'), $withDeploy.'/.starterkit/deploy/module.php');
+        (new KitInstaller($withDeploy))->install(KitAnswers::fromArray(['app_name' => 'My App', 'app_type' => 'api', 'deploy' => true]));
+
+        foreach (array_keys($workflows) as $name) {
+            $path = "/.github/workflows/{$name}";
+
+            expect(file_get_contents($withoutDeploy.$path))->toContain('main')->not->toContain('staging')
+                ->and(file_get_contents($withDeploy.$path))->toContain('staging')->not->toContain('main');
+        }
     });
 
     test('composes SETUP.md from the active modules and their variants when asked', function (): void {
@@ -252,7 +284,7 @@ PHP);
 
         expect($composer['support'])->toBe([
             'issues' => 'https://github.com/acme/my-app/issues',
-            'source' => 'https://github.com/acme/my-app/tree/main',
+            'source' => 'https://github.com/acme/my-app',
         ])->and($composer['authors'])->toBe([['name' => 'Jane Doe', 'email' => 'jane@acme.test']]);
     });
 

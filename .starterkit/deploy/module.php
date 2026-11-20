@@ -12,6 +12,15 @@ declare(strict_types=1);
  * The env entries document the keys the deploy compose file reads from the .env of each environment.
  */
 return [
+    // The deploy flow has no `main`: `staging` is the default branch, so the core workflows that run on
+    // push to the default branch follow it.
+    'replace' => [
+        '.github/workflows/tia-baseline.yml' => ['branches: [main]' => 'branches: [staging]'],
+        '.github/workflows/secret-scan.yml' => ['branches: [main]' => 'branches: [staging]'],
+        '.github/workflows/dependency-audit.yml' => ['branches: [main]' => 'branches: [staging]'],
+        '.github/workflows/container-scan.yml' => ['branches: [main]' => 'branches: [staging]'],
+        '.github/workflows/tests.yml' => ['every push to main' => 'every push to staging'],
+    ],
     'env' => [
         'APP_HOST' => '__KIT_APP_SLUG__.test',
         'TRAEFIK_ENTRYPOINT' => 'websecure',
